@@ -224,6 +224,11 @@ static void map_config(void *ud,int t,int index,const char *text)
 {
     export_t *e=ud;FORWARD(e,configstring,t,index,text);
 }
+static void diagnostic(void *ud, const char *code, int frame_number, int detail)
+{
+    (void)ud;
+    fprintf(stderr, "DM2 %s: frame %d, detail %d\n", code, frame_number, detail);
+}
 int main(int argc, char **argv)
 {
     int maps_only=argc==3 && !strcmp(argv[2],"--maps-only");
@@ -237,6 +242,7 @@ int main(int argc, char **argv)
         .player_state = state, .print = print_event, .layout = layout,
         .frame = frame, .cancelled = cancelled, .sound = sound, .muzzleflash = muzzleflash, .entity_frame = entity_frame, .effect = effect };
     if(maps_only)sink=(dof_sink_t){.ud=&e,.segment_start=map_segment,.configstring=map_config,.cancelled=cancelled};
+    sink.diagnostic = diagnostic;
     unsigned quality = 0;
     int rc = DOF_Decode(&reader, &sink, &quality); fclose(fp);
     if(maps_only) {

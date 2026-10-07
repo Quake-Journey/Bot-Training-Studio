@@ -24,14 +24,19 @@ internal static class BridgeTest
             JsonElement? training = null, cancellation = null;
             if (args.Length > i + 4)
             {
+                using var datasetMeta = JsonDocument.Parse(File.ReadAllText(Path.Combine(args[i + 4], "manifest.json")));
+                bool decisions = datasetMeta.RootElement.TryGetProperty("feature_version", out var family)
+                    && (family.GetString()?.StartsWith("observed-shot-pickup-") ?? false);
                 string store = Path.Combine(StudioSettings.Home, "bridge-model");
-                var request = new Dictionary<string, object?> { ["action"] = "train", ["backend"] = "cpu",
-                    ["profile"] = "reference", ["mode"] = "fresh", ["epochs"] = 20, ["dataset"] = args[i + 4], ["store"] = store };
+                var request = new Dictionary<string, object?> { ["action"] = decisions ? "train_decisions" : "train", ["backend"] = "cpu",
+                    ["profile"] = decisions ? "compact" : "reference", ["mode"] = "fresh", ["epochs"] = decisions ? 2 : 20,
+                    ["dataset"] = args[i + 4], ["store"] = store };
                 training = await runner.RunAsync(settings, request);
                 if (training.Value.GetProperty("type").GetString() != "completed") throw new Exception(training.ToString());
-                var pointer = Path.Combine(store, "active.json");
+                var pointer = Path.Combine(store, decisions ? "latest-experiment.json" : "active.json");
                 var before = File.Exists(pointer) ? File.ReadAllBytes(pointer) : [];
                 runner.Received += e => { if (e.GetProperty("type").GetString() == "progress" && e.TryGetProperty("epoch", out _)) runner.Cancel(); };
+                if (decisions) { request["mode"] = "resume"; request["epochs"] = 3; }
                 cancellation = await runner.RunAsync(settings, request);
                 if (cancellation.Value.GetProperty("type").GetString() != "cancelled") throw new Exception("Training was not cancelled");
                 var after = File.Exists(pointer) ? File.ReadAllBytes(pointer) : [];

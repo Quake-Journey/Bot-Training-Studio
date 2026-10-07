@@ -19,13 +19,17 @@ public sealed class StudioSettings
     public string[] Projects { get; set; } = [];
     public string SequenceDataset { get; set; } = "";
     public string TemporalStore { get; set; } = "";
+    public string DecisionDataset { get; set; } = "";
+    public string DecisionStore { get; set; } = "";
     public string Knowledge { get; set; } = "";
     public string Package { get; set; } = "";
     public string Donor { get; set; } = "";
     public int Context { get; set; } = 16;
+    public int SampleLimit { get; set; } = 6000;
     public bool IncludeModel { get; set; }
     public bool IncludeChat { get; set; }
     public int BatchSize { get; set; } = 64;
+    public int DecisionBatchSize { get; set; } = 64;
     public static string Home => Environment.GetEnvironmentVariable("BTS_HOME") ??
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "QuakeJourney", "BotTrainingStudio");
     public static StudioSettings Load()
@@ -45,6 +49,7 @@ public sealed class StudioSettings
         }
         if (result.Store.Length == 0) result.Store = Path.Combine(Home, "models", "motion");
         if (result.TemporalStore.Length == 0) result.TemporalStore = Path.Combine(Home, "models", "sequences");
+        if (result.DecisionStore.Length == 0) result.DecisionStore = Path.Combine(Home, "models", "decisions");
         if (result.Project.Length == 0) result.Project = Path.Combine(Home, "projects", "new-map");
         return result;
     }

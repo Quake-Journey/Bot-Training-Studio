@@ -184,6 +184,8 @@ typedef struct {
     void  (*muzzleflash)(void *ud, const dof_muzzleflash_t *flash);
     void  (*entity_frame)(void *ud, const dof_entity_frame_t *frame);
     void  (*effect)(void *ud, const dof_effect_t *effect);
+    /* Optional bounded diagnostic; decoder itself never prints globally. */
+    void  (*diagnostic)(void *ud, const char *code, int frame, int detail);
 } dof_sink_t;
 
 /* Decode one demo stream.  `out_quality` receives the DOF_Q_* flags and is

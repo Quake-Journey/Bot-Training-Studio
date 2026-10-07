@@ -161,6 +161,8 @@ public sealed class MainWindow : Window
         sequence.Children.Add(Button(L("Добавить текущую карту", "Add current map"), () => { S.Projects = S.Projects.Append(S.Project).Distinct().ToArray(); S.Save(); ShowPage(); }));
         sequence.Children.Add(Text(L("История наблюдений (кадров)", "Observed history (frames)")));
         sequence.Children.Add(Choice(["4", "8", "16", "32", "64", "128"], S.Context.ToString(), v => S.Context = int.Parse(v)));
+        sequence.Children.Add(Text(L("Максимум примеров в каждой выборке", "Maximum examples per dataset partition")));
+        sequence.Children.Add(Choice(["2000", "6000", "12000", "24000"], S.SampleLimit.ToString(), v => S.SampleLimit = int.Parse(v)));
         sequence.Children.Add(Button(L("Подготовить данные проектов", "Prepare project data"), () => Start("prepare_sequences"), true, true));
         sequence.Children.Add(Text(L("Подготовленный набор", "Prepared dataset")));
         sequence.Children.Add(PathRow(S.SequenceDataset, v => { S.SequenceDataset = v; S.Save(); }, false));
@@ -181,6 +183,24 @@ public sealed class MainWindow : Window
         sequence.Children.Add(Text(L("Качество каждого прогноза проверяется отдельно. Для проектов прежней версии повтори импорт и подготовку данных; старую модель сохрани в отдельной папке.",
             "Each prediction is evaluated separately. Re-import older projects and prepare their data again; preserve the old model in a separate folder.")));
         p.Children.Add(Card(sequence));
+        var decisions = Stack(12);
+        decisions.Children.Add(Text(L("Выстрелы и подборы предметов", "Shots and item pickups"), 20, true));
+        decisions.Children.Add(Text(L("Отдельное обучение по фактическим выстрелам и сообщениям о подборе. Использует проекты, историю и профиль выше. Старые проекты сначала импортируй повторно.",
+            "Separate learning from observed shots and pickup messages. Uses the projects, history and profile above. Re-import older projects first.")));
+        decisions.Children.Add(Button(L("Подготовить события игры", "Prepare gameplay events"), () => Start("prepare_decisions"), true, true));
+        decisions.Children.Add(Text(L("Набор событий", "Event dataset")));
+        decisions.Children.Add(PathRow(S.DecisionDataset, v => { S.DecisionDataset = v; S.Save(); }, false));
+        decisions.Children.Add(Text(L("Отдельная папка модели решений", "Separate decision model folder")));
+        decisions.Children.Add(PathRow(S.DecisionStore, v => { S.DecisionStore = v; S.Save(); }, false));
+        decisions.Children.Add(Button(L("Подобрать пакет для модели решений", "Measure decision model batch size"), () => Start("calibrate_decisions"), job: true));
+        var decisionActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        decisionActions.Children.Add(Button(L("Обучить", "Train"), () => Start("train_decisions", "fresh"), true, true));
+        decisionActions.Children.Add(Button(L("Дообучить", "Learn new data"), () => Start("train_decisions", "update"), job: true));
+        decisionActions.Children.Add(Button(L("Возобновить", "Resume"), () => Start("train_decisions", "resume"), job: true));
+        decisions.Children.Add(decisionActions);
+        decisions.Children.Add(Text(L("Эксперимент: предсказывает действия из записей. Дообучение повторяет прежний опыт и отдельно проверяет его сохранение. Результат пока не устанавливается в мод. Для обучения с нуля выбери новую папку модели.",
+            "Experiment: predicts recorded actions. Learning new data replays prior experience and checks retention separately. Results cannot yet be installed in the mod. Choose a new model folder to train from scratch.")));
+        p.Children.Add(Card(decisions));
     }
     private void LegacyTraining(StackPanel p)
     {
@@ -340,19 +360,22 @@ public sealed class MainWindow : Window
                 ["bsp"] = S.Bsp, ["inputs"] = S.Inputs, ["project"] = S.Project, ["projects"] = S.Projects,
                 ["tricks"] = S.Tricks, ["include_chat"] = S.IncludeChat,
                 ["batch_size"] = S.BatchSize,
-                ["donor"] = S.Donor, ["context"] = S.Context, ["knowledge"] = S.Knowledge, ["package"] = S.Package,
+                ["donor"] = S.Donor, ["context"] = S.Context, ["limit"] = S.SampleLimit, ["knowledge"] = S.Knowledge, ["package"] = S.Package,
                 ["library"] = Path.Combine(StudioSettings.Home, "library") };
-            if (action == "prepare_sequences") request["dataset"] = Path.Combine(StudioSettings.Home, "datasets", Guid.NewGuid().ToString("N"));
+            if (action is "prepare_sequences" or "prepare_decisions") request["dataset"] = Path.Combine(StudioSettings.Home, "datasets", Guid.NewGuid().ToString("N"));
             if (action is "train_sequences" or "sequence_status" or "calibrate") { request["dataset"] = S.SequenceDataset; request["store"] = S.TemporalStore; request["profile"] = S.Profile == "reference" ? "compact" : S.Profile; }
+            if (action is "train_decisions" or "calibrate_decisions") { request["dataset"] = S.DecisionDataset; request["store"] = S.DecisionStore; request["profile"] = S.Profile == "reference" ? "compact" : S.Profile; request["batch_size"] = S.DecisionBatchSize; }
             if (action == "compile_package") { request["output"] = Path.Combine(StudioSettings.Home, "exports", Guid.NewGuid().ToString("N") + ".btsknowledge"); if (S.IncludeModel) request["model_store"] = S.TemporalStore; }
             var terminal = await _runner.RunAsync(S, request);
             if (terminal.GetProperty("type").GetString() == "completed")
             {
                 var result = terminal.GetProperty("result");
                 if (action == "prepare_sequences") S.SequenceDataset = result.GetProperty("dataset").GetString()!;
+                if (action == "prepare_decisions") S.DecisionDataset = result.GetProperty("dataset").GetString()!;
                 if (action == "analyze_project") S.Knowledge = result.GetProperty("path").GetString()!;
                 if (action == "compile_package") S.Package = result.GetProperty("package").GetString()!;
                 if (action == "calibrate") S.BatchSize = result.GetProperty("batch_size").GetInt32();
+                if (action == "calibrate_decisions") S.DecisionBatchSize = result.GetProperty("batch_size").GetInt32();
                 S.Save();
                 _result = Summarize(action, result);
                 if (action == "hardware") _hardware = string.Join("  ·  ", result.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()));
@@ -373,7 +396,43 @@ public sealed class MainWindow : Window
     }
     private string Summarize(string action, JsonElement result)
     {
-        if (action is "import_project" or "analyze_project" or "prepare_sequences" or "compile_package" or "verify_package" or "install_offline" or "train_sequences" or "inventory" or "sequence_status" or "fit_movement" or "calibrate")
+        if (action == "train_decisions")
+        {
+            var decisionLines = new List<string> { L("Обучение завершено. Проверка на отдельных матчах:", "Training completed. Evaluation on held-out matches:") };
+            foreach (var map in result.GetProperty("test").EnumerateObject())
+            {
+                if (map.Name == "all") continue;
+                decisionLines.Add(map.Name);
+                var weapon = map.Value.GetProperty("weapon");
+                var pickup = map.Value.GetProperty("pickup");
+                if (weapon.GetProperty("samples").GetInt32() > 0)
+                {
+                    decisionLines.Add(L("  Оружие следующего выстрела: ", "  Next-shot weapon: ") + weapon.GetProperty("accuracy").GetDouble().ToString("P1"));
+                    if (weapon.TryGetProperty("persistence_accuracy", out var baseline) && baseline.ValueKind == JsonValueKind.Number)
+                        decisionLines.Add(L("  Если всегда оставлять текущее оружие: ", "  Always keeping the current weapon: ") + baseline.GetDouble().ToString("P1"));
+                    if (weapon.TryGetProperty("changed_shot_accuracy", out var changed) && changed.ValueKind == JsonValueKind.Number)
+                        decisionLines.Add(L("  Верные решения при смене оружия: ", "  Correct actual weapon switches: ") + changed.GetDouble().ToString("P1"));
+                }
+                if (pickup.GetProperty("samples").GetInt32() > 0)
+                {
+                    decisionLines.Add(L("  Следующий наблюдаемый подбор: ", "  Next observed pickup: ") + pickup.GetProperty("accuracy").GetDouble().ToString("P1"));
+                    if (pickup.TryGetProperty("observed_edge_accuracy", out var edges) && edges.ValueKind == JsonValueKind.Number)
+                        decisionLines.Add(L("  Тип предмета при фактическом подборе: ", "  Item type on observed pickups: ") + edges.GetDouble().ToString("P1"));
+                }
+            }
+            var qualified = result.GetProperty("qualified_observation_heads");
+            decisionLines.Add(L("Проверка выбора оружия: ", "Weapon quality gate: ") + (qualified.GetProperty("weapon").GetBoolean() ? L("пройдена", "passed") : L("не пройдена", "not passed")));
+            decisionLines.Add(L("Проверка подбора: ", "Pickup quality gate: ") + (qualified.GetProperty("pickup").GetBoolean() ? L("пройдена", "passed") : L("не пройдена", "not passed")));
+            if (result.TryGetProperty("retention", out var retention) && retention.ValueKind == JsonValueKind.Object)
+                foreach (var map in retention.GetProperty("test").EnumerateObject())
+                    foreach (var head in map.Value.EnumerateObject())
+                        decisionLines.Add(map.Name + " · " + head.Name + " · " + L("сохранение прежнего опыта: ", "prior experience retention: ") +
+                            (head.Value.GetProperty("retained").GetBoolean() ? L("пройдено", "passed") : L("обнаружено ухудшение", "regression detected")));
+            decisionLines.Add(L("Это прогноз действий из записей, не проверка победы бота. Подробности сохранены в папке задания. Установка в мод пока недоступна.",
+                "This predicts recorded actions, not bot victories. Details are saved in the job folder. Game installation is not available yet."));
+            return string.Join("\n", decisionLines);
+        }
+        if (action is "import_project" or "analyze_project" or "prepare_sequences" or "prepare_decisions" or "train_decisions" or "compile_package" or "verify_package" or "install_offline" or "train_sequences" or "inventory" or "sequence_status" or "fit_movement" or "calibrate" or "calibrate_decisions")
             return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
         if (action == "hardware")
             return string.Join("\n", result.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()))
@@ -437,9 +496,18 @@ public sealed class MainWindow : Window
                 image.Render(root);
                 using var output = File.Create(Path.Combine(folder, $"{language}-{theme}-{page}.png"));
                 image.Save(output, new PngBitmapEncoderOptions());
+                if (page == "train" && window._content.Content is ScrollViewer scroll)
+                {
+                    scroll.Offset = new Vector(0, scroll.Extent.Height);
+                    Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
+                    using var lower = new RenderTargetBitmap(new PixelSize(1180, 820), new Vector(96, 96));
+                    lower.Render(root);
+                    using var lowerOutput = File.Create(Path.Combine(folder, $"{language}-{theme}-train-decisions.png"));
+                    lower.Save(lowerOutput, new PngBitmapEncoderOptions());
+                }
             }
             window.Close();
         }
-        File.WriteAllText(Path.Combine(folder, "ui-test.json"), "{\"pass\":true,\"views\":28}");
+        File.WriteAllText(Path.Combine(folder, "ui-test.json"), "{\"pass\":true,\"views\":32}");
     }
 }

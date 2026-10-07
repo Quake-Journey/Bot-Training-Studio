@@ -72,8 +72,11 @@ def run(request_path):
             from .knowledge import analyze
             result=analyze(request["project"],request.get("donor") or None,
                 event=lambda row:emit("progress",**row),cancelled=cancelled)
-        elif action == "prepare_sequences":
-            from .sequences import prepare
+        elif action in ("prepare_sequences", "prepare_decisions"):
+            if action == 'prepare_decisions':
+                from .decisions import prepare
+            else:
+                from .sequences import prepare
             sources=[]
             for value in request["projects"]:
                 folder=Path(value);meta=json.loads((folder/"project.json").read_text())
@@ -82,8 +85,11 @@ def run(request_path):
             result=prepare(sources,request["dataset"],int(request.get("context",16)),int(request.get("limit",2000)),
                 donor=request.get("donor") or None,event=lambda row:emit("progress",**row),cancelled=cancelled)
             result=dict(dataset=request["dataset"],context=result["context"],splits=result["splits"],runtime_qualified=False)
-        elif action == "train_sequences":
-            from .temporal import train
+        elif action in ("train_sequences", "train_decisions"):
+            if action == 'train_decisions':
+                from .decision_learning import train
+            else:
+                from .temporal import train
             import torch
             backend=request["backend"]
             if backend=="auto":backend=next((d["backend"] for d in hardware() if d["backend"]!="cpu"),"cpu")
@@ -121,12 +127,13 @@ def run(request_path):
             selected = next((d for d in devices if d["backend"] != "cpu"), devices[0])
             result = dict(devices=devices, profiles=catalog(),
                           suggested_profile=choose_profile(selected.get("free_gib", 0), selected["backend"]))
-        elif action == "calibrate":
+        elif action in ("calibrate", "calibrate_decisions"):
             from .resources import calibrate
             backend=request["backend"]
             if backend=="auto":backend=next((d["backend"] for d in hardware() if d["backend"]!="cpu"),"cpu")
             result=calibrate(request.get("profile","compact"),backend,int(request.get("context",16)),
-                event=lambda row:emit("progress",**row),cancelled=cancelled)
+                event=lambda row:emit("progress",**row),cancelled=cancelled,
+                family='decisions' if action=='calibrate_decisions' else 'sequences')
         elif action == "probe":
             from .learning import device_for, model_new
             from .models import PROFILES

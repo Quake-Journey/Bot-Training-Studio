@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from .analyzer import TableWriter,atomic_json,io_path
 from .motion import angle,quantiles
+from .items import pickup, packet_items, VERSION as PICKUP_VERSION, PACKET_VERSION
 
 WEAPONS=dict(blast='blaster',shotg='shotgun',shotg2='supershotgun',machn='machinegun',
     chain='chaingun',handgr='handgrenade',launch='grenadelauncher',rocket='rocketlauncher',
@@ -18,7 +19,7 @@ WEAPONS=dict(blast='blaster',shotg='shotgun',shotg2='supershotgun',machn='machin
 FLASH={0:'blaster',1:'machinegun',2:'shotgun',3:'chaingun',4:'chaingun',5:'chaingun',
        6:'railgun',7:'rocketlauncher',8:'grenadelauncher',12:'bfg',13:'supershotgun',14:'hyperblaster'}
 VEC=pa.list_(pa.float32())
-OBSERVATION_VERSION = 'combat-terminal-ammo-v3'
+OBSERVATION_VERSION = 'combat-frame-items-v4'
 SCHEMA=pa.schema([
     ('recording_id',pa.string()),('segment',pa.int32()),('seq',pa.int64()),('time_ms',pa.int64()),
     ('epoch_id',pa.int32()),('slot',pa.int32()),('enemy_slot',pa.int32()),
@@ -28,6 +29,10 @@ SCHEMA=pa.schema([
     ('speed_xy',pa.float32()),('health',pa.int32()),('armor',pa.int32()),
     ('ammo_observed',pa.int32()),('ammo_known',pa.bool_()),
     ('last_shot_age_ms',pa.int32()),('last_shot_known',pa.bool_()),
+    ('pickup_item',pa.string()),('pickup_name',pa.string()),('pickup_seq',pa.int64()),
+    ('pickup_observation_known',pa.bool_()),
+    ('state_seq',pa.int64()),('gunframe',pa.int32()),
+    ('packet_items',pa.list_(pa.struct([('item',pa.string()),('origin',VEC),('entity',pa.int32())]))),
     ('packet_enemy_origin',VEC),('packet_enemy_velocity',VEC),('range',pa.float32()),
     ('yaw_error',pa.float32()),('pitch_error',pa.float32()),('camera_yaw_error',pa.float32()),
     ('camera_pitch_error',pa.float32()),('center_ray_clear',pa.bool_()),('shot_ray_clear',pa.bool_()),
@@ -38,7 +43,7 @@ SCHEMA=pa.schema([
     ('original_usercmd_available',pa.bool_()),('training_ready',pa.bool_())])
 SHOT_SCHEMA=pa.schema([
     ('recording_id',pa.string()),('segment',pa.int32()),('seq',pa.int64()),('time_ms',pa.int64()),
-    ('slot',pa.int32()),('weapon',pa.string()),('silenced',pa.bool_()),('mvd',pa.bool_()),
+    ('slot',pa.int32()),('epoch_id',pa.int32()),('weapon',pa.string()),('silenced',pa.bool_()),('mvd',pa.bool_()),
     ('scope',pa.int32()),('context_seq',pa.int64()),('context_time_ms',pa.int64()),
     ('context_age_ms',pa.int32()),('context',pa.string()),('range',pa.float32()),
     ('yaw_error',pa.float32()),('pitch_error',pa.float32()),('training_ready',pa.bool_())])
@@ -195,12 +200,13 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
     for f in facts:
         if f['kind']=='epoch' and f['start_conf']==2 and len(parts[f['epoch_id']])==2:epochs[f['segment']].append(f)
     streams=[rows(directory/'player_states.parquet','state'),rows(directory/'entity_frames.parquet','scene'),rows(directory/'events.parquet')]
-    states={};scene=None;configs={};base=32;previous={};previous_scene=None;latest={};segment=None;last_shots={}
+    states={};scene=None;configs={};base=32;items_base=None;previous={};previous_scene=None;latest={};segment=None;last_shots={}
     for row in heapq.merge(*streams,key=lambda r:r['seq']):
         kind=row['kind'];seg=row['segment'];t=row['time_ms']
         if seg!=segment:
-            states={};scene=None;configs={};base=32;previous={};previous_scene=None;latest={};segment=seg;last_shots={}
-        if kind=='segment_start':base=62 if row['extended'] else 32
+            states={};scene=None;configs={};base=32;items_base=None;previous={};previous_scene=None;latest={};segment=seg;last_shots={}
+        if kind=='segment_start':
+            base=62 if row['extended'] else 32;items_base=row.get('items_base')
         elif kind=='configstring':configs[row['index']]=row['text']
         elif kind=='scene':scene=row
         elif kind=='state':states[row['slot']]=row
@@ -211,7 +217,7 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
             age=t-prior['time_ms'] if prior else None
             if not prior or age not in (0,100):counts['unjoined_shots']+=1;continue
             last_shots[(prior['epoch_id'],prior['slot'])]=t
-            shots.add(dict(recording_id=record_id,segment=seg,seq=row['seq'],time_ms=t,slot=row['entity']-1,
+            shots.add(dict(recording_id=record_id,segment=seg,seq=row['seq'],time_ms=t,slot=row['entity']-1,epoch_id=prior['epoch_id'],
                 weapon=w,silenced=bool(row['weapon']&128),mvd=bool(row['mvd']),scope=row['scope'],
                 context_seq=prior['seq'],context_time_ms=prior['time_ms'],context_age_ms=age,
                 context=prior['context'],range=prior.get('range'),yaw_error=prior.get('yaw_error'),
@@ -240,12 +246,22 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
                 if not actor['active_seen'] or actor['chase_spectator'] or not actor['time_ms']<=t<=actor['end_ms'] or (actor['identity_end_ms'] and t>=actor['identity_end_ms']):continue
                 if not all(finite(s[k]) for k in ('origin','velocity','view_angles')):continue
                 result=features(s,entities.get(opponent['slot']+1),previous.get(slot),prior_entities.get(opponent['slot']+1),scene,collision,configs,base)
+                picked=pickup(prior,s,configs,items_base) if s.get('pov') or scene['mvd'] else None
+                result['pickup_observation_known']=bool(items_base is not None and (s.get('pov') or scene['mvd'])
+                    and prior and prior['stats'][1]>0 and s['stats'][1]>0 and t-prior['time_ms']==100)
+                if picked:
+                    result.update(pickup_item=picked['item'],pickup_name=picked['name'],pickup_seq=picked['seq'])
+                    counts['pickup_edges']+=1;counts['pickup/'+picked['item']]+=1
                 shot_key=(epoch['epoch_id'],slot)
                 if not prior or prior['stats'][1]<=0:last_shots.pop(shot_key,None)
                 last_shot=last_shots.get(shot_key)
                 result.update(last_shot_known=last_shot is not None,
                     last_shot_age_ms=t-last_shot if last_shot is not None else None)
-                result.update(recording_id=record_id,segment=seg,seq=s['seq'],time_ms=t,epoch_id=epoch['epoch_id'],slot=slot,
+                # This observation becomes available at frame commit, after
+                # its playerstate AND entity snapshot. A flash between those
+                # records must not be mislabeled as a future decision.
+                result.update(state_seq=s['seq'],gunframe=s.get('gunframe'),packet_items=packet_items(scene,configs,base))
+                result.update(recording_id=record_id,segment=seg,seq=row['seq'],time_ms=t,epoch_id=epoch['epoch_id'],slot=slot,
                     enemy_slot=opponent['slot'],aliases=actor['aliases'],opponent_aliases=opponent['aliases'],map=mapname,mvd=scene['mvd'])
                 contexts.add(result);counts['contexts']+=1;counts['context/'+result['context']]+=1
                 if terminal:counts['terminal_contexts']+=1
@@ -259,7 +275,7 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
 def main(a):
     began=time.monotonic();a.data=io_path(a.data);a.out=io_path(a.out)
     sources={name:hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
-             for name in ('combat.py','analyzer.py','motion.py')}
+             for name in ('combat.py','analyzer.py','motion.py','items.py')}
     if a.out.exists():raise ValueError('Use a new evidence output directory')
     snapshot=json.loads((a.data/'current.json').read_text(encoding='utf-8'))
     collision=Collision(a.physics,a.bsp);a.out.mkdir(parents=True)
@@ -271,7 +287,8 @@ def main(a):
             prepare_record(a.data/record['path'],record['recording_id'],a.map,collision,contexts,shots,counts,samples)
     finally:contexts.close();shots.close();collision.close()
     for name in ('combat','shots'):(a.out/(name+'.parquet.new')).replace(a.out/(name+'.parquet'))
-    report=dict(schema=1,observation_version=OBSERVATION_VERSION,source_run=snapshot['run_id'],bsp_sha256=collision.sha,model_count=collision.models,
+    report=dict(schema=1,observation_version=OBSERVATION_VERSION,pickup_version=PICKUP_VERSION,packet_item_version=PACKET_VERSION,
+        item_transform_sha256=sources['items.py'],source_run=snapshot['run_id'],bsp_sha256=collision.sha,model_count=collision.models,
         physics_sha256=hashlib.sha256(a.physics.read_bytes()).hexdigest(),transform_sha256=sources['combat.py'],sources=sources,
         counts=dict(counts),quantiles={k:quantiles(v) for k,v in samples.items()},seconds=round(time.monotonic()-began,3),
         training_ready=False,limits=[

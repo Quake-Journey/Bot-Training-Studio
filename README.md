@@ -58,6 +58,7 @@ Python и компиляции DLL на стороне пользователя.
 [архитектуру и этапы](docs/ARCHITECTURE_RU.md),
 [результаты проверок 0.2](docs/VALIDATION_0.2_RU.md).
 Дальнейшие результаты: [обучение исходам эпизодов](docs/VALIDATION_OUTCOMES_RU.md).
+Текущий эксперимент: [выстрелы и подборы предметов](docs/VALIDATION_DECISIONS_RU.md).
 
 Исходный код: GPL-2.0-or-later, см. LICENSE и
 [происхождение компонентов](docs/PROVENANCE.md). Демки, карты, обученные веса,

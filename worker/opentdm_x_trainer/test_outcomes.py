@@ -90,6 +90,8 @@ class OutcomeTests(unittest.TestCase):
             with patch.object(combat,'rows',side_effect=stream):
                 combat.prepare_record(root,'demo','arena',None,contexts,Writer(),counts,defaultdict(list))
             self.assertEqual([r['health'] for r in contexts.rows],[100,0,100])
+            self.assertEqual([r['seq'] for r in contexts.rows],[2,5,11])
+            self.assertEqual([r['state_seq'] for r in contexts.rows],[0,3,9])
             self.assertEqual(counts['terminal_contexts'],1)
             self.assertFalse(contexts.rows[-1]['continuous'])
 

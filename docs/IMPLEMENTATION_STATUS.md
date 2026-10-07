@@ -42,3 +42,23 @@ conditional training-only donor evidence, five grouped folds and real sequential
 map training. These finish a data/model milestone, NOT the entire checklist.
 Weapon decisions, exact resource targets, full tactical policies, full trick
 recovery and gameplay qualification remain open. No game DLL changes.
+
+Continued rather than stopping at the outcome milestone: timed HUD pickup
+edges, frame-commit observation order, packet item models, past-only equipment
+memory and independent shot/pickup decisions are implemented. The decision
+experiment is accessible through the UI and isolated worker, including its own
+resource calibration and checkpoint/resume. See VALIDATION_DECISIONS_RU.md.
+Its weights are NOT exported to the game. Decision updates now replay old
+training evidence, preserve whole-group holdouts and check old-map retention;
+validation regressions cannot select the next update checkpoint. This does
+not close optimal weapon choice, item control or full gameplay validation.
+
+Next independent work is action feasibility and outcome qualification, not
+another claim based on action imitation accuracy: validate weapon timing,
+trace/projectile candidates and target availability with explicit unknowns;
+then compare feasible actions and measured outcomes. The current next-shot
+classifier is dominated by weapon persistence and cannot certify a tactical
+teacher. Item labels still name types rather than unique pickups/timers.
+Full dynamic tricks, donor dialogue review, clean-machine packaging and
+AMD/Intel hardware validation remain open. These are not completed by the
+decision/replay milestone, and no game-module integration is authorized here.

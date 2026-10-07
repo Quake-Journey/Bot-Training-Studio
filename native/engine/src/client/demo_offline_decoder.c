@@ -48,6 +48,7 @@ typedef struct {
 
     bool                mvd;
     bool                have_segment;
+    bool                dm2_disconnected;
     const cs_remap_t   *csr;
     int                 protocol;        /* raw long from the stream */
     int                 eff_protocol;    /* DM2: 26..34 after the extended fold */
@@ -91,6 +92,12 @@ typedef struct {
     char                layoutbuf[MAX_NET_STRING];
 } dof_t;
 
+static void dof_diagnostic(dof_t *d, const char *code, int frame, int detail)
+{
+    if (d->sink->diagnostic)
+        d->sink->diagnostic(d->sink->ud, code, frame, detail);
+}
+
 size_t DOF_ScratchSize(void)
 {
     return sizeof(dof_t);
@@ -122,8 +129,13 @@ static int dof_next_dm2_message(dof_t *d)
 {
     uint32_t msglen;
 
-    if (!dof_read_exact(d, &msglen, 4))
+    int got = d->rd->read(d->rd->ud, &msglen, 1);
+    if (got == 0)
         return 0;                       /* clean EOF without the -1 marker */
+    if (got != 1 || !dof_read_exact(d, (byte *)&msglen + 1, 3)) {
+        d->quality |= DOF_Q_TRUNCATED;
+        return -1;                      /* a partial length is not EOF */
+    }
     if (msglen == (uint32_t)-1)
         return 0;
 
@@ -439,6 +451,7 @@ static bool dof_dm2_frame(dof_t *d)
          * during a pause. The matching tagged state remains a valid base;
          * an unseen same-frame reference is still rejected below. */
         if (!d->dm2_valid[previous] || d->dm2_frame[previous] != deltaframe) {
+            dof_diagnostic(d, "missing_delta_base", currentframe, deltaframe);
             d->quality |= DOF_Q_DESYNC;
             return false;
         }
@@ -488,6 +501,7 @@ static bool dof_dm2_frame(dof_t *d)
         return false;
     }
     if (!dof_packet_world(d, false, deltaframe)) {
+        dof_diagnostic(d, "invalid_entities", currentframe, deltaframe);
         d->quality |= DOF_Q_DESYNC;
         return false;
     }
@@ -607,6 +621,7 @@ static bool dof_dm2_temp_entity(dof_t *d)
         break;
 
     default:
+        dof_diagnostic(d, "unsupported_temp_entity", d->framenum, type);
         d->quality |= DOF_Q_DESYNC;
         return false;
     }
@@ -680,6 +695,7 @@ static bool dof_dm2_message(dof_t *d)
 
         /* Demos never carry the R1Q2/Q2PRO extra-bits packing. */
         if (cmd < 0 || (cmd & ~SVCMD_MASK)) {
+            dof_diagnostic(d, "invalid_command", d->framenum, cmd);
             d->quality |= DOF_Q_DESYNC;
             return false;
         }
@@ -687,6 +703,18 @@ static bool dof_dm2_message(dof_t *d)
         switch (cmd) {
         case svc_nop:
             break;
+
+        case svc_disconnect:
+        case svc_reconnect:
+            /* Both terminate ordinary client demo playback. A trailing
+             * packet is not a continuation of this connection and must not
+             * supply future observations or inherit its delta state. */
+            if (d->msg.readcount != d->msg.cursize) {
+                d->quality |= DOF_Q_DESYNC;
+                return false;
+            }
+            d->dm2_disconnected = true;
+            return true;
 
         case svc_serverdata:
             if (!dof_dm2_serverdata(d))
@@ -765,6 +793,7 @@ static bool dof_dm2_message(dof_t *d)
             /* Everything else (download, zpacket, gamestate, setting) is
              * never copied into a recorded demo.  Seeing one means we lost
              * the byte stream; say so instead of guessing. */
+            dof_diagnostic(d, "unsupported_command", d->framenum, cmd);
             d->quality |= DOF_Q_DESYNC;
             return false;
         }
@@ -1238,6 +1267,8 @@ int DOF_Decode(const dof_reader_t *reader, const dof_sink_t *sink,
                 ret = DOF_ERR_FORMAT;
                 goto done;
             }
+            if (d->dm2_disconnected)
+                break;
             int r = dof_next_dm2_message(d);
             if (r == 0)
                 break;

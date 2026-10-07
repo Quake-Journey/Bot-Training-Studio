@@ -19,6 +19,12 @@ Python `bts_analysis` contains the corresponding extracted decoder-table,
 combat/grouping/motion helpers. Unused legacy mod-library compiler was omitted.
 No active Mapgen/Claude checkout is needed to build or run the Studio.
 
+Studio's DM2 adapter also recognizes terminal disconnect/reconnect playback
+commands, rejects partial packet-length EOF and reports missing delta bases.
+This changes only the vendored offline decoder, not either game's client or
+module. Project decoder/transport changes invalidate the affected cached
+observations and trigger re-decoding from original inputs.
+
 The runtime builder uses the official [CPython embedded distribution](https://www.python.org/downloads/release/python-31316/)
 with its published SHA-256 and pinned [PyTorch wheels](https://pytorch.org/get-started/previous-versions/#v2-10-0).
 Runtime lock files preserve the exact wheel URLs and hashes. Binary runtimes
