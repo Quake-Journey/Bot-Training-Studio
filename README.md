@@ -12,6 +12,11 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 Читать на GitHub: [RU](docs/USER_GUIDE_RU.md) · [EN](docs/USER_GUIDE_EN.md).
 В программе они доступны в «Настройки → Документация».
 
+Готовые пользовательские сборки будут доступны в
+[GitHub Releases](https://github.com/Quake-Journey/Bot-Training-Studio/releases)
+с номером версии, описанием изменений и документацией. Текущая версия остаётся
+предварительной. [Правила выпуска и нумерации](docs/RELEASING.md).
+
 ## Что работает
 
 - Отдельное настольное приложение: русский/английский интерфейс, светлая,
@@ -53,8 +58,9 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
   защита прежних карт через повтор данных и сохранение предсказаний старой модели.
 - Пакеты данных с проверкой целостности и библиотекой отката. Непрошедшие
   проверку выходы модели не включаются в пакет вместе с успешными.
-- Сборщик отдельных встроенных сред CPU/CUDA для Windows: пользователю
-  такого пакета не требуется устанавливать Python. AMD/Intel ещё не проверены.
+- Сборщик сред CPU/CUDA для разработчика и комплектных библиотек для
+  пользовательского пакета. Python используется установленный либо отдельно
+  устанавливается программой. AMD/Intel ещё не проверены.
 
 ## К чему идём
 
@@ -86,10 +92,16 @@ Python и компиляции DLL на стороне пользователя.
 An independent offline desktop training application for OpenTDM-X bots.
 This development preview contains a bilingual Avalonia UI, bundled native
 demo/physics tools, transactional map projects, sequence learning and continual
-replay. CPU/CUDA runtimes can be bundled for autonomous Windows use.
+replay. CPU/CUDA model libraries are bundled; compatible Python is reused or
+installed separately by the application.
 **Tactical learning and installable server knowledge are not complete.**
 No game-module source, private recordings or pretrained weights are included.
 See the architecture and validation documents for current limits.
+
+Ready end-user builds will be published in
+[GitHub Releases](https://github.com/Quake-Journey/Bot-Training-Studio/releases)
+with version numbers, change notes and documentation. This remains a development
+preview. See the bilingual [release policy](docs/RELEASING.md).
 
 The UI defaults to Russian for a Russian system UI language, and English
 otherwise. **Settings → Language** offers **Use system language**, **Русский**

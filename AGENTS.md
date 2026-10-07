@@ -21,6 +21,15 @@ never private recordings, server configs/secrets, developer absolute paths,
 ML caches or user projects. Publish a checked intermediate build/source only.
 Do not copy the old bot repository history or private operational reports.
 
+Ready end-user builds belong in GitHub Releases for Quake-Journey/Bot-Training-Studio,
+not just in source commits. Follow docs/RELEASING.md. Each delivered application
+revision must have a new version; keep the EXE, UI, build.json, guides, archive
+names and Git tag consistent. Maintain release notes as the net change from the
+previous published version. Update both RU/EN guides for changed behavior and
+include their DOCX files with the complete application/library package. Publish
+checksums and verify the uploaded artifacts. A source backup is not a user release;
+do not label an unfinished development preview as a finished user build.
+
 UI: RU/EN, light/dark/system themes, responsive background jobs, useful progress,
 recoverable errors and bounded storage. Settings live outside tracked source.
 Language defaults to the Windows user's UI language: Russian only for Russian,
