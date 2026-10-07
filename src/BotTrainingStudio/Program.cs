@@ -10,8 +10,7 @@ internal static class Program
         if (args.Contains("--resource-load")) return ResourceTest.Load();
         if (args.Contains("--resource-test")) return ResourceTest.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--bridge-test")) return BridgeTest.Run(args).GetAwaiter().GetResult();
-        BuildApp().StartWithClassicDesktopLifetime(args);
-        return 0;
+        return BuildApp().StartWithClassicDesktopLifetime(args);
     }
     public static AppBuilder BuildApp() => AppBuilder.Configure<App>()
         .UsePlatformDetect().WithInterFont().LogToTrace();

@@ -15,6 +15,15 @@ internal static class BridgeTest
             var runner = new JobRunner();
             int events = 0;
             runner.Received += _ => events++;
+            var early = runner.RunAsync(settings, new() { ["action"] = "hardware" });
+            bool duplicateRejected = false;
+            try { await runner.RunAsync(settings, new() { ["action"] = "hardware" }); }
+            catch (InvalidOperationException) { duplicateRejected = true; }
+            if (!duplicateRejected) throw new Exception("Concurrent worker launch was not rejected");
+            if (!await runner.CancelAsync()) throw new Exception("Early cancellation request was lost");
+            var earlyResult = await early;
+            if (earlyResult.GetProperty("type").GetString() != "cancelled") throw new Exception("Early cancellation did not stop the job");
+            if (runner.WorkerPid != 0 || runner.IsRunning) throw new Exception("Cancelled startup retained a worker");
             var info = await runner.RunAsync(settings, new() { ["action"] = "hardware" });
             if (info.GetProperty("type").GetString() != "completed") throw new Exception(info.ToString());
             var probe = await runner.RunAsync(settings, new() { ["action"] = "probe", ["backend"] = "cpu", ["profile"] = "compact" });
@@ -43,7 +52,8 @@ internal static class BridgeTest
                 if (!before.SequenceEqual(after)) throw new Exception("Cancellation changed the active model");
             }
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(receipt))!);
-            File.WriteAllText(receipt, JsonSerializer.Serialize(new { pass = true, events, hardware = info, probe, failed_action = failure, training, cancellation }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(receipt, JsonSerializer.Serialize(new { pass = true, events, early_cancellation = earlyResult, duplicateRejected,
+                hardware = info, probe, failed_action = failure, training, cancellation }, new JsonSerializerOptions { WriteIndented = true }));
             return 0;
         }
         catch (Exception ex)

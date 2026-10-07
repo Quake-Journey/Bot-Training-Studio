@@ -25,6 +25,11 @@ UI: RU/EN, light/dark/system themes, responsive background jobs, useful progress
 recoverable errors and bounded storage. Settings live outside tracked source.
 Use ProcessStartInfo.ArgumentList; workers receive structured JSON, never shell
 command fragments. Preserve previous model generation on failure/cancel.
+Keep model computation, process/stream management and protocol parsing off the
+UI thread. Bound/coalesce progress updates so worker output cannot flood the
+dispatcher. Closing during a job must ask first, default to keeping work, and
+wait asynchronously for cooperative shutdown after confirmation. Never silently
+cancel on the first close click or kill a training process on normal exit.
 
 Tests cover job protocol/cancellation, leak-free datasets, actual training and
 checkpoint compatibility, resource selection and UI layout. Inspect rendered

@@ -7,14 +7,17 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.Styling;
 using System.Text.Json;
+using FluentAvalonia.UI.Controls;
 
 namespace BotTrainingStudio;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly JobRunner _runner = new();
     private readonly ResourceSampler _resources;
     private readonly DispatcherTimer _resourceTimer;
+    private readonly DispatcherTimer _eventTimer;
+    private readonly JobEventBuffer _events = new();
     private LoadMeter? _meter;
     private readonly ContentControl _content = new();
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
@@ -25,6 +28,12 @@ public sealed class MainWindow : Window
     private string _hardware = "";
     private string _result = "";
     private bool _allowClose;
+    private bool _exitPromptOpen;
+    private bool _exitAfterJob;
+    private bool _jobUiActive;
+    private FAContentDialog? _exitDialog;
+    private readonly Button _stay = new() { IsVisible = false };
+    private bool JobActive => _runner.IsRunning || _jobUiActive;
     private StudioSettings S => App.Settings;
     private string L(string ru, string en) => S.Language == "ru" ? ru : en;
     private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#8b83ff"));
@@ -36,23 +45,67 @@ public sealed class MainWindow : Window
         _resources = new ResourceSampler(() => _runner.WorkerPid);
         _resourceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _resourceTimer.Tick += (_, _) => _meter?.Show(_resources.Latest);
-        Opened += (_, _) => _resourceTimer.Start();
-        Closed += (_, _) => { _resourceTimer.Stop(); _resources.Dispose(); };
+        _eventTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        _eventTimer.Tick += (_, _) => FlushEvents();
+        _stay.Click += (_, _) => { _exitAfterJob = false; _stay.IsVisible = false; };
+        Opened += (_, _) => { _resourceTimer.Start(); _eventTimer.Start(); };
+        Closed += (_, _) => { _resourceTimer.Stop(); _eventTimer.Stop(); _resources.Dispose(); };
         Width = 1180; Height = 820; MinWidth = 980; MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        _runner.Received += e => Dispatcher.UIThread.Post(() => OnEvent(e));
-        _runner.Diagnostic += line => Dispatcher.UIThread.Post(() => AppendLog(line));
-        Closing += (_, e) =>
-        {
-            if (_runner.IsRunning)
-            {
-                e.Cancel = true;
-                _runner.Cancel();
-                _allowClose = true;
-                _status.Text = L("Останавливаем задание. Предыдущая модель сохранится.", "Stopping the job. The previous model will be preserved.");
-            }
-        };
+        _runner.Received += _events.Receive;
+        _runner.Diagnostic += _events.Log;
+        Closing += OnClosing;
         BuildShell();
+    }
+
+    private async void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_allowClose || !JobActive && !_exitPromptOpen) return;
+        e.Cancel = true;
+        if (_exitPromptOpen || _exitAfterJob) return;
+        _exitPromptOpen = true;
+        try
+        {
+            _exitDialog = new FAContentDialog
+            {
+                Title = L("Задание ещё выполняется", "A job is still running"),
+                Content = L("Остановить задание и выйти? Программа дождётся безопасной остановки. Прежняя модель и завершённые контрольные точки сохранятся; незавершённая часть текущего шага может быть потеряна.",
+                    "Stop the job and quit? The application will wait for a safe stop. The previous model and completed checkpoints will be kept; unfinished work in the current step may be lost."),
+                PrimaryButtonText = L("Остановить и выйти", "Stop and quit"),
+                CloseButtonText = L("Продолжить работу", "Keep working"),
+                DefaultButton = FAContentDialogButton.Close
+            };
+            if (await _exitDialog.ShowAsync(this) != FAContentDialogResult.Primary) return;
+            _exitAfterJob = true;
+            _stay.IsVisible = true;
+            _status.Text = L("Останавливаем задание… Окно закроется после остановки. Интерфейс доступен.",
+                "Stopping the job… The window will close once it stops. You can still use the interface.");
+            bool requested = await _runner.CancelAsync();
+            if (!requested && _runner.IsRunning)
+            {
+                _exitAfterJob = false; _stay.IsVisible = false;
+                _status.Text = L("Не удалось запросить остановку. Задание продолжает работать; подробности в журнале.",
+                    "Could not request a stop. The job is still running; see the log for details.");
+            }
+            if (_exitAfterJob && !JobActive) { _allowClose = true; Close(); }
+        }
+        catch (Exception ex)
+        {
+            _exitAfterJob = false; _stay.IsVisible = false;
+            _status.Text = L("Не удалось закрыть программу: ", "Could not close the application: ") + ex.Message;
+        }
+        finally
+        {
+            _exitPromptOpen = false; _exitDialog = null;
+            foreach (var b in _jobButtons) b.IsEnabled = !JobActive && !_exitAfterJob;
+        }
+    }
+
+    private void FlushEvents()
+    {
+        var (message, lines) = _events.Drain();
+        if (message is { } item) OnEvent(item);
+        if (lines.Length > 0) AppendLog(string.Join('\n', lines));
     }
 
     private TextBlock Text(string value, double size = 14, bool bold = false) => new()
@@ -73,12 +126,12 @@ public sealed class MainWindow : Window
         if (primary) { b.Background = new SolidColorBrush(Color.Parse("#6356d9")); b.Foreground = Brushes.White; }
         ToolTip.SetTip(b, text);
         b.Click += (_, _) => action();
-        if (job) { b.IsEnabled = !_runner.IsRunning; _jobButtons.Add(b); }
+        if (job) { b.IsEnabled = !JobActive && !_exitPromptOpen && !_exitAfterJob; _jobButtons.Add(b); }
         return b;
     }
     private void BuildShell()
     {
-        foreach (var control in new Control[] { _content, _status, _progress })
+        foreach (var control in new Control[] { _content, _status, _progress, _stay })
             if (control.Parent is Panel parent) parent.Children.Remove(control);
         Content = null;
         _jobButtons.Clear();
@@ -105,6 +158,8 @@ public sealed class MainWindow : Window
         var outer = new DockPanel();
         var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(32, 8, 32, 18) };
         bottom.Children.Add(_status); bottom.Children.Add(_progress);
+        _stay.Content = L("Остаться в программе после остановки", "Stay in the application after stopping");
+        bottom.Children.Add(_stay);
         string? selectedGpu = _meter?.SelectedGpu;
         _meter = new LoadMeter(L, Light);
         _meter.Show(_resources.Latest, selectedGpu);
@@ -361,7 +416,9 @@ public sealed class MainWindow : Window
     }
     private async void Start(string action, string mode = "fresh")
     {
-        if (_runner.IsRunning) return;
+        if (JobActive || _exitPromptOpen || _exitAfterJob) return;
+        _jobUiActive = true;
+        bool safeToClose = false;
         _progress.Value = 0; _result = "";
         _status.Text = L("Запускаем задание…", "Starting job…");
         foreach (var b in _jobButtons) b.IsEnabled = false;
@@ -379,6 +436,7 @@ public sealed class MainWindow : Window
             if (action is "train_decisions" or "calibrate_decisions") { request["dataset"] = S.DecisionDataset; request["store"] = S.DecisionStore; request["profile"] = S.Profile == "reference" ? "compact" : S.Profile; request["batch_size"] = S.DecisionBatchSize; }
             if (action == "compile_package") { request["output"] = Path.Combine(StudioSettings.Home, "exports", Guid.NewGuid().ToString("N") + ".btsknowledge"); if (S.IncludeModel) request["model_store"] = S.TemporalStore; }
             var terminal = await _runner.RunAsync(S, request);
+            safeToClose = terminal.GetProperty("type").GetString() is "completed" or "cancelled";
             if (terminal.GetProperty("type").GetString() == "completed")
             {
                 var result = terminal.GetProperty("result");
@@ -389,16 +447,24 @@ public sealed class MainWindow : Window
                 if (action == "calibrate") S.BatchSize = result.GetProperty("batch_size").GetInt32();
                 if (action == "calibrate_decisions") S.DecisionBatchSize = result.GetProperty("batch_size").GetInt32();
                 S.Save();
-                _result = Summarize(action, result);
+                _result = await Task.Run(() => Summarize(action, result));
+                if (_result.Length > 20000) _result = _result[..20000] + L("\n…Полный результат — в папке задания.", "\n…Full result is in the job folder.");
                 if (action == "hardware") _hardware = string.Join("  ·  ", result.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()));
             }
         }
-        catch (Exception ex) { _status.Text = L("Не удалось выполнить задание: ", "Job failed: ") + ex.Message; AppendLog(ex.Message); }
+        catch (Exception ex)
+        {
+            safeToClose = false; FlushEvents();
+            _status.Text = L("Не удалось выполнить задание: ", "Job failed: ") + ex.Message; AppendLog(ex.Message);
+        }
         finally
         {
+            _jobUiActive = false;
+            FlushEvents();
+            if (_exitAfterJob && !safeToClose) { _exitAfterJob = false; _stay.IsVisible = false; }
             foreach (var b in _jobButtons) b.IsEnabled = true;
             ShowPage();
-            if (_allowClose) Close();
+            if (_exitAfterJob) { _allowClose = true; Close(); }
         }
     }
     private void AppendLog(string text)
@@ -472,7 +538,8 @@ public sealed class MainWindow : Window
         if (type == "progress")
         {
             if (e.TryGetProperty("progress", out var progress)) _progress.Value = progress.GetDouble() * 100;
-            _status.Text = e.TryGetProperty("epoch", out var epoch)
+            _status.Text = _exitAfterJob ? L("Останавливаем задание… Окно закроется после остановки.", "Stopping the job… The window will close once it stops.")
+                : e.TryGetProperty("epoch", out var epoch)
                 ? L("Обучение · эпоха ", "Training · epoch ") + epoch + " / " + e.GetProperty("epochs")
                 : L("Подготовка и проверка…", "Preparing and checking…");
         }
@@ -485,7 +552,6 @@ public sealed class MainWindow : Window
                 : L("Задание завершено. Это ещё не подтверждение готовности к игре.", "Job completed. This is not gameplay qualification.");
         }
         else if (type is "failed" or "cancelled") _status.Text = (type == "cancelled" ? L("Отменено: ", "Cancelled: ") : L("Ошибка: ", "Error: ")) + e.GetProperty("message").GetString();
-        AppendLog(e.ToString());
     }
     public static void RenderTests(string folder)
     {

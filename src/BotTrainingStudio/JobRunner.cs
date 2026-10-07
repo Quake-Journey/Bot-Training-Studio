@@ -10,37 +10,85 @@ public sealed class JobRunner
     private int _workerPid;
     public int WorkerPid => Volatile.Read(ref _workerPid);
     private string? _folder;
+    private readonly object _gate = new();
+    private RunState? _current;
+    private sealed class RunState
+    {
+        public readonly TaskCompletionSource<string?> Ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<bool>? Cancellation;
+        public bool Finished;
+    }
     public bool IsRunning => Volatile.Read(ref _busy) != 0;
     public string? JobFolder => _folder;
     public event Action<JsonElement>? Received;
     public event Action<string>? Diagnostic;
 
-    public void Cancel()
+    public void Cancel() => _ = CancelAsync();
+
+    public Task<bool> CancelAsync()
     {
-        if (IsRunning && _folder != null) File.WriteAllText(Path.Combine(_folder, "cancel.request"), "cancel");
+        lock (_gate)
+        {
+            if (_current is not { } run) return Task.FromResult(false);
+            // Bound to this run even if another job starts while the request is waiting for disk I/O.
+            return run.Cancellation ??= Task.Run(async () =>
+            {
+                try
+                {
+                    string? folder = await run.Ready.Task.ConfigureAwait(false);
+                    lock (_gate) { if (run.Finished || folder == null) return false; }
+                    await File.WriteAllTextAsync(Path.Combine(folder, "cancel.request"), "cancel").ConfigureAwait(false);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Diagnostic?.Invoke("Cannot request stop: " + ex.Message);
+                    return false;
+                }
+            });
+        }
     }
 
-    public async Task<JsonElement> RunAsync(StudioSettings settings, Dictionary<string, object?> request)
+    public Task<JsonElement> RunAsync(StudioSettings settings, Dictionary<string, object?> request)
     {
-        if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) throw new InvalidOperationException("A job is already running");
+        RunState run;
+        lock (_gate)
+        {
+            if (_current != null) throw new InvalidOperationException("A job is already running");
+            run = _current = new RunState();
+            _folder = null;
+            Volatile.Write(ref _busy, 1);
+        }
+        // Capture paths now: browsing settings during training cannot redirect the running job.
+        string python = settings.Python, worker = settings.WorkerDirectory;
+        var snapshot = new Dictionary<string, object?>(request);
+        return Task.Run(() => RunCoreAsync(python, worker, snapshot, run));
+    }
+
+    private async Task<JsonElement> RunCoreAsync(string python, string worker, Dictionary<string, object?> request, RunState run)
+    {
         try
         {
-            if (!File.Exists(settings.Python)) throw new FileNotFoundException("Choose the Python runtime in Settings", settings.Python);
-            if (!File.Exists(Path.Combine(settings.WorkerDirectory, "opentdm_x_trainer", "studio.py")))
+            if (!File.Exists(python)) throw new FileNotFoundException("Choose the Python runtime in Settings", python);
+            if (!File.Exists(Path.Combine(worker, "opentdm_x_trainer", "studio.py")))
                 throw new DirectoryNotFoundException("Choose the installed worker folder in Settings");
             string id = Guid.NewGuid().ToString("N");
             _folder = Path.Combine(StudioSettings.Home, "jobs", id);
             Directory.CreateDirectory(_folder);
+            run.Ready.TrySetResult(_folder);
             request["protocol"] = 1;
             request["job_id"] = id;
             var path = Path.Combine(_folder, "request.json");
             await File.WriteAllTextAsync(path, JsonSerializer.Serialize(request));
-            var info = new ProcessStartInfo(settings.Python)
+            Task<bool>? cancellation;
+            lock (_gate) cancellation = run.Cancellation;
+            if (cancellation != null) await cancellation;
+            var info = new ProcessStartInfo(python)
             {
                 UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true,
                 StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
-                WorkingDirectory = settings.WorkerDirectory
+                WorkingDirectory = worker
             };
             info.ArgumentList.Add("-I");
             info.ArgumentList.Add("-X");
@@ -48,12 +96,12 @@ public sealed class JobRunner
             info.ArgumentList.Add("-u");
             info.ArgumentList.Add("-c");
             info.ArgumentList.Add("import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('opentdm_x_trainer.studio',run_name='__main__')");
-            info.ArgumentList.Add(Path.GetFullPath(settings.WorkerDirectory));
+            info.ArgumentList.Add(Path.GetFullPath(worker));
             info.ArgumentList.Add("--request");
             info.ArgumentList.Add(path);
+            using var stderr = new StreamWriter(Path.Combine(_folder, "stderr.txt"));
             using var process = Process.Start(info) ?? throw new InvalidOperationException("Cannot start worker");
             Volatile.Write(ref _workerPid, process.Id);
-            using var stderr = new StreamWriter(Path.Combine(_folder, "stderr.txt"));
             var errorTask = Task.Run(async () =>
             {
                 int count = 0;
@@ -96,6 +144,17 @@ public sealed class JobRunner
                 throw;
             }
         }
-        finally { Volatile.Write(ref _workerPid, 0); Volatile.Write(ref _busy, 0); }
+        finally
+        {
+            Task<bool>? cancellation;
+            lock (_gate)
+            {
+                run.Finished = true;
+                run.Ready.TrySetResult(null);
+                cancellation = run.Cancellation;
+            }
+            if (cancellation != null) await cancellation;
+            lock (_gate) { _current = null; Volatile.Write(ref _workerPid, 0); Volatile.Write(ref _busy, 0); }
+        }
     }
 }
