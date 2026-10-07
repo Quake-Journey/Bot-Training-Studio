@@ -30,6 +30,12 @@ include their DOCX files with the complete application/library package. Publish
 checksums and verify the uploaded artifacts. A source backup is not a user release;
 do not label an unfinished development preview as a finished user build.
 
+Keep exactly one local runnable end-user build at dist/Release. Update this same
+directory for each new version; do not create version-named runnable directories.
+Keep only the current release archives in dist/packages. Published historical
+versions remain in GitHub Releases. Preserve user data outside distribution files.
+Development-only output must be explicitly requested with -DevelopmentOnly.
+
 UI: RU/EN, light/dark/system themes, responsive background jobs, useful progress,
 recoverable errors and bounded storage. Settings live outside tracked source.
 Language defaults to the Windows user's UI language: Russian only for Russian,

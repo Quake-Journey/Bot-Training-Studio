@@ -97,8 +97,20 @@ This policy does not declare the current development preview complete.
 
 ## Release tooling / Инструменты выпуска
 
-`scripts/build_release.py` takes a qualified `--package`, a new `--out`
-directory and the `--rar` executable. It builds the complete multipart RAR,
+Локальная актуальная программа всегда находится в `dist/Release`, архивы
+текущей версии — в `dist/packages`. Не создавать отдельные локальные каталоги
+программы для каждого номера версии. Перед подготовкой нового пакета удалять
+только проверенные опубликованные архивы предыдущего выпуска; историю хранить
+в GitHub Releases, локальные небольшие свидетельства проверки — в artifacts.
+Это изменение правил локальной сборки не требует новой версии приложения.
+
+Use one stable local application directory, `dist/Release`, and only the current
+release archives in `dist/packages`. Historical builds belong in GitHub Releases;
+keep small verification receipts in artifacts. Do not accumulate version-named
+local runnable copies. These build-tool defaults do not change the application version.
+
+`scripts/build_release.py` defaults to `--package dist/Release` and
+`--out dist/packages`, and takes the `--rar` executable. It builds the complete multipart RAR,
 the smaller application ZIP, checksummed library ZIP parts, updater manifest,
 paired DOCX attachments and SHA256SUMS. Library parts can be prepared first with
 `--libraries-only`; a matching verified local receipt permits reuse. The pinned official Python archive belongs in `worker/runtime/`; personal settings,

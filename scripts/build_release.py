@@ -47,6 +47,9 @@ def build(package, output, rar, libraries_only=False):
     package, output = package.resolve(), output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     version = notes()
+    previous = output/'release-assets.json'
+    if previous.is_file() and json.loads(previous.read_text())['version'] != version:
+        raise ValueError('Keep only the current local release: remove verified published previous assets before packaging a new version')
     if json.loads((package/'build.json').read_text(encoding='utf-8-sig'))['version'] != version:
         raise ValueError('Rebuild the application package at the current version')
     python_lock = json.loads((ROOT/'packaging/runtime-cpu-win-x64.lock.json').read_text())
@@ -123,8 +126,8 @@ def build(package, output, rar, libraries_only=False):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
-    parser.add_argument('--package',type=Path)
-    parser.add_argument('--out',type=Path)
+    parser.add_argument('--package',type=Path,default=ROOT/'dist/Release')
+    parser.add_argument('--out',type=Path,default=ROOT/'dist/packages')
     parser.add_argument('--rar',type=Path)
     parser.add_argument('--notes-only',action='store_true')
     parser.add_argument('--libraries-only',action='store_true')

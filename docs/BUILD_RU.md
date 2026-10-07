@@ -13,16 +13,24 @@ PyTorch 2.10.0 CPU/CUDA 12.8 и RTX 5090. Это инструкция сборщ
 python -m pip install -r worker/requirements.txt
 python scripts/build_native.py --cc gcc
 python scripts/bundle_runtime.py --out dist/runtime-cuda-win-x64 --backend cuda
-python scripts/bundle_libraries.py --runtime dist/runtime-cuda-win-x64 --out dist/portable-preview-win-x64/libraries
+python scripts/bundle_libraries.py --runtime dist/runtime-cuda-win-x64 --out dist/Release/libraries
+python scripts/fetch_python_embed.py
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_preview.ps1
 ```
 
 PyTorch нужного варианта устанавливается отдельно в среду разработчика;
 см. [официальные варианты 2.10.0](https://pytorch.org/get-started/previous-versions/#v2-10-0).
 Native-сборка использует только `native/engine`, а не соседний checkout.
-Выход: `dist/portable-preview-win-x64/BotTrainingStudio.exe`, комплект libraries,
-worker с декодером/физикой и документация. Пользовательский пакет не содержит
-Python: программа находит установленный или предлагает его поставить.
+Выход: `dist/Release/BotTrainingStudio.exe`, комплект libraries,
+worker с декодером/физикой, официальный архив Python и документация.
+Программа использует подходящую среду или предлагает установить Python из комплекта.
+
+Локально поддерживается одна актуальная сборка в `dist/Release`, без номера
+версии в имени папки. Следующая сборка обновляет этот же каталог.
+`bundle_libraries.py` нужен при первой подготовке библиотек или их замене;
+повторно выполнять его для уже существующей папки не нужно. Архивы текущего
+выпуска находятся в `dist/packages`; историю опубликованных пакетов хранит
+GitHub Releases. Проекты, модели и настройки пользователя в эти папки не кладут.
 
 ## Среда сборщика и комплект библиотек
 

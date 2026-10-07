@@ -4,13 +4,17 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 $projectFile = Join-Path $repoRoot 'src\BotTrainingStudio\BotTrainingStudio.csproj'
 $projectVersion = ([xml](Get-Content -LiteralPath $projectFile -Raw)).Project.PropertyGroup.Version
 if (!$projectVersion) { throw 'Missing application version' }
-if (!$Output) { $Output = Join-Path $repoRoot 'dist\portable-preview-win-x64' }
+$currentOutput = [IO.Path]::GetFullPath((Join-Path $repoRoot 'dist\Release'))
+if (!$Output) { $Output = $currentOutput }
 $Output = [IO.Path]::GetFullPath($Output)
+if (!$DevelopmentOnly -and $Output -ne $currentOutput) {
+    throw 'Use dist/Release for the single current end-user build. Custom paths are for -DevelopmentOnly diagnostics.'
+}
 if (!$DevelopmentOnly -and !(Test-Path -LiteralPath (Join-Path $Output 'libraries\studio-libraries.json') -PathType Leaf)) {
     throw 'End-user packages must include libraries. Run scripts/bundle_libraries.py first; -DevelopmentOnly is for incomplete developer builds only.'
 }
 if (!$DocsPython) {
-    $bundledDocsPython = Join-Path $repoRoot 'dist\preview-win-x64\runtime\python.exe'
+    $bundledDocsPython = Join-Path $repoRoot 'dist\runtime-cuda-win-x64\python.exe'
     if (Test-Path -LiteralPath $bundledDocsPython -PathType Leaf) { $DocsPython = $bundledDocsPython }
     else { $DocsPython = (Get-Command python -ErrorAction Stop).Source }
 }
