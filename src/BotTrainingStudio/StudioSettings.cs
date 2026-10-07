@@ -44,6 +44,7 @@ public sealed class StudioSettings
     public bool AutoUpdateCheck { get; set; } = true;
     public string LastSeenVersion { get; set; } = "";
     public string Python { get; set; } = "";
+    public bool PythonUsesBundledLibraries { get; set; } = true;
     public string WorkerDirectory { get; set; } = "";
     public string Backend { get; set; } = "auto";
     public string RuntimeBackend { get; set; } = "cpu";

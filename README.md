@@ -2,7 +2,7 @@
 
 Локальная программа обучения ботов OpenTDM-X по опыту игроков.
 
-**0.3.0-preview.2 — предварительная версия для разработки.** Работают прямой импорт
+**0.3.0-preview.3 — предварительная версия для разработки.** Работают прямой импорт
 BSP + DM2/MVD2, проекты карт, извлечение маршрутов и обучение по истории
 матчей. Это офлайн-исследование: полноценная тактическая модель ещё не готова,
 устанавливать полученные пакеты в текущий игровой мод нельзя.
@@ -17,12 +17,11 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 с номером версии, описанием изменений и документацией. Текущая версия остаётся
 предварительной. [Правила выпуска и нумерации](docs/RELEASING.md).
 
-## Что нового в 0.3.0-preview.2
+## Что нового в 0.3.0-preview.3
 
-- Стартовая проверка Python и библиотек перенесена в отдельное модальное окно; установщик больше не появляется и не исчезает на главной странице.
-- Список GPU показывает физические видеокарты: исключены виртуальные дисплеи, программный рендерер Windows и безымянные записи счётчиков. Две настоящие карты одной модели остаются отдельными устройствами.
-- После запуска новой распакованной копии используется её комплектный модуль обучения, а не модуль из прежней папки.
-- Обновлены руководства RU/EN. Проверка среды не перекрывается журналом изменений и не блокирует обработку интерфейса.
+- Python 3.13 x64 включён в полный пакет. При отсутствии подходящей среды стартовое окно предлагает установить его из комплекта без интернета и прав администратора.
+- Готовые окружения Python 3.12 и новее с необходимыми библиотеками проходят проверку вычислений и могут использоваться напрямую; несовместимые двоичные библиотеки комплекта в них не подмешиваются.
+- Обновлены установка, проверка целостности, встроенное обновление и руководства RU/EN для комплектного Python.
 
 [Полный список изменений RU](docs/CHANGELOG.ru.md) · [English change notes](docs/CHANGELOG.en.md).
 
@@ -42,8 +41,8 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
   В коде предусмотрены ROCm и Intel XPU, но на соответствующем оборудовании
   эта версия ещё не проверялась.
 - Библиотеки программы и модели входят в комплект. Используется подходящий
-  установленный Python; если его нет, программа предлагает установить только
-  Python. Никаких ручных pip-команд или установки CUDA Toolkit пользователю
+  установленный Python или готовая среда 3.12+. Если подходящей среды нет,
+  программа предлагает установить Python 3.13 из комплекта без интернета. Никаких ручных pip-команд или установки CUDA Toolkit пользователю
   не требуется. Установка работает в фоне, с проверкой и отменой.
 - Эталонная небольшая модель и четыре экспериментальных Transformer-профиля:
   Compact, Balanced, Large, XL. Это начало исследования, а не окончательные
@@ -68,8 +67,8 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 - Пакеты данных с проверкой целостности и библиотекой отката. Непрошедшие
   проверку выходы модели не включаются в пакет вместе с успешными.
 - Сборщик сред CPU/CUDA для разработчика и комплектных библиотек для
-  пользовательского пакета. Python используется установленный либо отдельно
-  устанавливается программой. AMD/Intel ещё не проверены.
+  пользовательского пакета. Python используется установленный либо
+  устанавливается программой из включённого в пакет архива. AMD/Intel ещё не проверены.
 
 ## К чему идём
 
@@ -99,11 +98,11 @@ Python и компиляции DLL на стороне пользователя.
 ## English
 
 An independent offline desktop training application for OpenTDM-X bots.
-Version **0.3.0-preview.2** adds persistent compute-device selection, bilingual change notes and verified GitHub updates with cancellation and rollback.
+Version **0.3.0-preview.3** includes offline Python setup and reuse of complete Python 3.12+ environments.
 This development preview contains a bilingual Avalonia UI, bundled native
 demo/physics tools, transactional map projects, sequence learning and continual
 replay. CPU/CUDA model libraries are bundled; compatible Python is reused or
-installed separately by the application.
+installed offline from the included interpreter archive.
 **Tactical learning and installable server knowledge are not complete.**
 No game-module source, private recordings or pretrained weights are included.
 See the architecture and validation documents for current limits.
@@ -123,7 +122,7 @@ Both are bundled in `docs` and accessible through **Settings → Documentation**
 Editable guides: [English](docs/USER_GUIDE_EN.md), [Russian](docs/USER_GUIDE_RU.md).
 
 Application and model libraries are included. An existing compatible Python
-is reused; **Install Python** downloads only the interpreter if needed. No
-user-side pip commands, PyTorch setup or CUDA Toolkit installation. Downloads
+is reused, including complete Python 3.12+ environments. Otherwise, **Install bundled Python** installs the included Python 3.13 x64 offline. No
+user-side pip commands, PyTorch setup or CUDA Toolkit installation. Integrity
 and computations are checked before activation. The application has an
 embedded Windows icon for Explorer, its window and the taskbar.

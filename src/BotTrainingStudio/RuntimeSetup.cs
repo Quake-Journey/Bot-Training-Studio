@@ -7,13 +7,14 @@ using System.Text.Json;
 
 namespace BotTrainingStudio;
 
-internal sealed record RuntimeProbe(bool Ready, string Detail, string Python = "", string Torch = "", bool Cuda = false);
+internal sealed record RuntimeProbe(bool Ready, string Detail, string Python = "", string Torch = "", bool Cuda = false,
+    bool UsesBundledLibraries = true);
 internal sealed record RuntimeProgress(string Stage, string Name = "", double Fraction = 0, long Bytes = 0);
 internal sealed record RuntimeArchive(string Name, string Url, string Sha256);
 internal sealed record BundledLibraries(string Directory, string Backend, string PythonMinor);
 
 /// <summary>Installs only pinned CPython; model/application libraries must already ship in the package.
-/// Only a fully probed interpreter becomes active. Downloads, extraction and probes run off the UI thread.</summary>
+/// Only a fully probed interpreter becomes active. Local extraction and probes run off the UI thread.</summary>
 internal sealed class RuntimeSetup
 {
     internal static readonly string[] Backends = ["cpu", "cuda"];
@@ -120,13 +121,27 @@ internal sealed class RuntimeSetup
     public Task<string> InstallAsync(string home, string backend, Action<RuntimeProgress> progress, CancellationToken token) =>
         Task.Run(() => InstallCore(home, backend, progress, token), token);
 
+    internal static string BundledPythonArchive => Path.Combine(AppContext.BaseDirectory, "runtime",
+        Path.GetFileName(new Uri(Archives(Manifest("cpu"))[0].Url).AbsolutePath));
+
+    internal static async Task CopyVerifiedArchiveAsync(string source, string destination, string digest, CancellationToken token)
+    {
+        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 131072, true);
+        await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 131072, true);
+        await input.CopyToAsync(output, token);
+        output.Position = 0;
+        string actual = Convert.ToHexString(await SHA256.HashDataAsync(output, token));
+        if (!actual.Equals(digest, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Bundled Python archive SHA256 mismatch");
+    }
+
     private async Task<string> InstallCore(string home, string backend, Action<RuntimeProgress> progress, CancellationToken token)
     {
         if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess) throw new PlatformNotSupportedException("Windows x64 is required");
         var libraries = Libraries ?? throw new InvalidDataException("The package is missing its libraries folder. Extract the complete application package.");
         backend = libraries.Backend;
         string manifest = Manifest(backend);
-        var archives = Archives(manifest).Take(1).ToArray(); // Libraries ship with the application; download only CPython.
+        var archive = Archives(manifest)[0];
+        if (!File.Exists(BundledPythonArchive)) throw new FileNotFoundException("Bundled Python is missing. Extract the complete Studio package.");
         string root = Path.GetFullPath(Path.Combine(home, "runtimes"));
         Directory.CreateDirectory(root);
         // OS handle prevents two application instances installing concurrently. It survives a stale lock file.
@@ -143,23 +158,16 @@ internal sealed class RuntimeSetup
         Directory.CreateDirectory(stage);
         try
         {
-            // Only the small interpreter is downloaded. Packaged model libraries stay in place.
+            // Install the bundled official interpreter offline. Model libraries stay in the application folder.
             long space = new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace;
             long required = 100L * 1024 * 1024;
             if (space < required) throw new IOException("Insufficient disk space: 100 MiB required for Python");
-            using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("BotTrainingStudio/0.2");
-            for (int i = 0; i < archives.Length; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                var archive = archives[i];
-                string downloaded = Path.Combine(stage, ".download.zip");
-                await DownloadAsync(http, archive, downloaded,
-                    bytes => progress(new("downloading", archive.Name, (double)i / archives.Length, bytes)), token);
-                progress(new("extracting", archive.Name, (double)i / archives.Length));
-                await ExtractAsync(downloaded, i == 0 ? stage : Path.Combine(stage, "Lib", "site-packages"), i != 0, token);
-                File.Delete(downloaded);
-            }
+            string verified = Path.Combine(stage, ".python.zip");
+            progress(new("verifying", "CPython"));
+            await CopyVerifiedArchiveAsync(BundledPythonArchive, verified, archive.Sha256, token);
+            progress(new("extracting", "CPython", .3));
+            await ExtractAsync(verified, stage, false, token);
+            File.Delete(verified);
             await File.WriteAllTextAsync(Path.Combine(stage, "python313._pth"), "python313.zip\n.\nLib/site-packages\nimport site\n", token);
             progress(new("checking", Fraction: .97));
             var probe = await ProbeAsync(Path.Combine(stage, "python.exe"), token);
@@ -284,18 +292,34 @@ internal sealed class RuntimeSetup
         }
     }
 
-    public static Task<RuntimeProbe> ProbeAsync(string python, CancellationToken token = default) => Task.Run(async () =>
+    public static async Task<RuntimeProbe> ProbeAsync(string python, CancellationToken token = default)
+    {
+        // First use the version-matched, qualified package libraries. An existing
+        // environment may instead supply its own complete libraries (e.g. a 3.12 venv).
+        // A bare 3.12/3.14 interpreter never loads our cp313 binary wheels.
+        var bundled = await ProbeCoreAsync(python, Libraries?.Directory ?? "", Libraries != null, token);
+        if (bundled.Ready || !File.Exists(python) || !IsWindowsX64Executable(python)) return bundled;
+        if (Libraries == null) return bundled;
+        var existing = await ProbeCoreAsync(python, "", false, token);
+        if (existing.Ready) return existing;
+        if (bundled.Python.Length > 0 && !bundled.Python.StartsWith(Libraries.PythonMinor + ".", StringComparison.Ordinal))
+            return new(false, "Python " + bundled.Python + " is installed, but packaged libraries require Python "
+                + Libraries.PythonMinor + " x64. Its own model libraries did not pass the computation check.", bundled.Python);
+        return bundled;
+    }
+
+    private static Task<RuntimeProbe> ProbeCoreAsync(string python, string library, bool useBundled, CancellationToken token) => Task.Run(async () =>
     {
         if (!File.Exists(python)) return new RuntimeProbe(false, "Python executable not found");
         if (OperatingSystem.IsWindows() && !IsWindowsX64Executable(python))
             return new RuntimeProbe(false, "The selected file is not a Windows x64 executable");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(90));
-        const string code = "import sys,struct,json; library=sys.argv[1]; assert (sys.version_info[:2]==(3,13) if library else sys.version_info >= (3,12)) and struct.calcsize('P') == 8, 'This package requires Python 3.13 x64'; sys.path.insert(0,library) if library else None; import torch,numpy,pyarrow,safetensors,sklearn,packaging,rarfile; from sklearn.tree import DecisionTreeClassifier; DecisionTreeClassifier().fit([[0],[1]],[0,1]); a=torch.tensor([2.0],requires_grad=True); (a*a).sum().backward(); assert a.grad.item()==4; print(json.dumps(dict(python=sys.version.split()[0],torch=torch.__version__,cuda=torch.cuda.is_available())))";
+        const string code = "import sys,struct,json; library=sys.argv[1]; print(json.dumps(dict(detected_python=sys.version.split()[0])),flush=True); assert (sys.version_info[:2]==(3,13) if library else sys.version_info >= (3,12)) and struct.calcsize('P') == 8, 'Incompatible Python version or architecture'; sys.path.insert(0,library) if library else None; import torch,numpy,pyarrow,safetensors,sklearn,packaging,rarfile; from sklearn.tree import DecisionTreeClassifier; DecisionTreeClassifier().fit([[0],[1]],[0,1]); a=torch.tensor([2.0],requires_grad=True); (a*a).sum().backward(); assert a.grad.item()==4; print(json.dumps(dict(python=sys.version.split()[0],torch=torch.__version__,cuda=torch.cuda.is_available())))";
         var info = new ProcessStartInfo(python) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        if (Libraries != null) info.ArgumentList.Add("-S");
+        if (useBundled) info.ArgumentList.Add("-S");
         foreach (string arg in new[] { "-I", "-X", "utf8", "-c", code }) info.ArgumentList.Add(arg);
-        info.ArgumentList.Add(Libraries?.Directory ?? "");
+        info.ArgumentList.Add(library);
         try
         {
             using var process = Process.Start(info) ?? throw new IOException("Could not start Python");
@@ -311,10 +335,17 @@ internal sealed class RuntimeSetup
                 return new RuntimeProbe(false, "Python runtime check timed out");
             }
             string output = await stdout, error = await stderr;
-            if (process.ExitCode != 0) return new RuntimeProbe(false, (error.Length > 1800 ? error[^1800..] : error).Trim());
-            using var parsed = JsonDocument.Parse(output);
+            string detected = "";
+            var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (lines.Length > 0)
+            {
+                using var version = JsonDocument.Parse(lines[0]);
+                detected = version.RootElement.GetProperty("detected_python").GetString() ?? "";
+            }
+            if (process.ExitCode != 0) return new RuntimeProbe(false, (error.Length > 1800 ? error[^1800..] : error).Trim(), detected);
+            using var parsed = JsonDocument.Parse(lines[^1]);
             var r = parsed.RootElement;
-            return new RuntimeProbe(true, "", r.GetProperty("python").GetString()!, r.GetProperty("torch").GetString()!, r.GetProperty("cuda").GetBoolean());
+            return new RuntimeProbe(true, "", r.GetProperty("python").GetString()!, r.GetProperty("torch").GetString()!, r.GetProperty("cuda").GetBoolean(), useBundled);
         }
         catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception or JsonException) { return new RuntimeProbe(false, ex.Message); }
     }, token);

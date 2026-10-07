@@ -1,5 +1,11 @@
 # Bot Training Studio
 
+## 0.3.0-preview.3 — 2026-10-07
+
+- Python 3.13 x64 is included in the complete package. If no ready environment is found, the startup dialog offers offline installation from the package without administrator access.
+- Complete Python 3.12+ environments with the required libraries can be reused after computation checks; incompatible bundled binary libraries are not injected into them.
+- Updated setup, integrity checks, application updates and RU/EN guides for bundled Python.
+
 ## 0.3.0-preview.2 — 2026-10-07
 
 - Startup checks for Python and libraries now use a separate modal dialog; the installer no longer appears and disappears on Home.

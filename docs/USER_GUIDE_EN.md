@@ -1,6 +1,6 @@
 # Bot Training Studio by ly
 
-User guide • English • Version 0.3.0-preview.2, development preview
+User guide • English • Version 0.3.0-preview.3, development preview
 
 Updated: 7 October 2026
 
@@ -28,11 +28,11 @@ The future game module will read validated data rather than run a neural network
 
 ## 2. Installation and interface settings
 
-The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**. Application and model libraries are included. Installed Python 3.13 x64 is reused; if missing, the Studio offers installation (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
+The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**, **runtime**. Application and model libraries are included. Compatible installed Python or a complete Python 3.12+ environment is reused. Otherwise, the included Python 3.13 x64 can be installed offline (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
 
 CPU and NVIDIA CUDA have been tested. ROCm and Intel XPU code paths exist, but support for specific AMD/Intel GPUs has not yet been hardware-qualified. GPU profiles do not have a universal 4 GB VRAM limit. A larger profile requires more resources and does not by itself guarantee better quality.
 
-At startup, a separate modal dialog checks Python and the bundled libraries in the background. It closes after a successful check. If Python is not ready, open Settings or continue without training. You can quit during the check. The installer does not appear on Home; the CPU/GPU computation setting stays in place.
+At startup, a separate modal dialog checks Python and the bundled libraries in the background. It closes after a successful check. If Python is not ready, install it from the package, open Settings or continue without training. You can quit during the check. The installer does not appear on Home; the CPU/GPU computation setting stays in place.
 
 After extracting a complete build into a new folder, the Studio uses that build's **worker**. An explicitly selected standalone development worker is preserved.
 
@@ -200,26 +200,26 @@ The project is distributed under GPL-2.0-or-later. Dependency licenses remain in
 
 <!-- page -->
 
-## 8. Automatic Python installation
+## 8. Installing bundled Python
 
-Home and Settings contain **Python interpreter**. Application and model libraries ship in **libraries**. The Studio checks installed Python, loads the bundled libraries and runs a small computation. An unsuitable Python installation is not modified or upgraded without your involvement.
+Settings contains **Python interpreter**. Application and model libraries ship in **libraries**; the verified official Python 3.13 x64 archive ships in **runtime**. Startup validates the selected environment with a small computation.
 
-1. If suitable Python is found, you can work immediately. **Select installed Python…** allows manual selection; libraries come from the Studio package, not from the system environment.
-2. If Python is missing, click **Install Python**. Only the official interpreter is downloaded from python.org and verified by SHA256. No pip or separate GPU-library downloads are required.
-3. Watch progress at the bottom of the window. You can navigate between pages. Training is unavailable while setup runs.
-4. After extraction, the application checks bundled libraries and computation. Only a successful installation becomes active, and the selection is saved. You can then check hardware and train a model.
+1. If a ready environment is found, work immediately. **Select installed Python…** allows manual selection. Python 3.13 uses Studio libraries; complete Python 3.12+ environments can use their own libraries after computation checks.
+2. Otherwise, click **Install Python** in the startup dialog or **Install bundled Python** in Settings. The Studio verifies the local archive's SHA256 and extracts it into its own data folder. No internet or administrator access is required.
+3. Follow progress at the bottom of the window. Navigation remains available. Training is disabled during setup.
+4. After extraction, the Studio checks libraries and computation. Only successful setup becomes active, and the choice is saved.
 
-Installing Python alone needs about **100 MiB of free space including headroom** and internet access. Libraries are already in the extracted package; they are not downloaded or copied again. NVIDIA acceleration needs a compatible driver, not the full CUDA Toolkit. CPU works without a GPU. AMD/Intel GPU paths are not separately qualified yet.
+Allow about **100 MiB of free space including headroom**. Package libraries are not downloaded or copied again. NVIDIA needs a compatible driver, not the full CUDA Toolkit. CPU works without a GPU. AMD/Intel GPU paths are not separately qualified yet.
 
 ### Finding Python
 
-The Studio checks the selected Python, then searches PATH and Windows Python registrations. It also considers Python previously installed by the Studio. Version 3.13 x64 is required by this package's binary libraries. If **libraries** is missing, extract the complete application package: installing Python does not replace those files.
+The Studio checks selected Python, its managed installations, PATH and Windows registrations. Packaged binary libraries require Python 3.13 x64. Complete Python 3.12+ environments are checked separately; incompatible bundled libraries are not injected. If **libraries** or **runtime** is missing, extract the complete package.
 
 ### Cancellation and retry
 
-**Cancel installation** stops downloading or extraction and removes incomplete files from the attempt. Closing the window first asks whether to keep working. The previous Python is preserved. Retry after a network error; incomplete downloads start over. A healthy installed Python is reused without downloading again.
+**Cancel installation** stops extraction or validation and removes incomplete attempt files. Closing first asks whether to keep working. The previous environment is preserved. For a corrupt archive, extract a verified complete package again. A healthy installed Python is reused.
 
-Automatically installed Python lives in **runtimes** under the Studio data directory (section 6). Administrator access is not needed; setup does not change PATH or other Python installations. Do not delete the selected Python while the application is running.
+Installed Python lives in **runtimes** under the Studio data folder (section 6). Setup does not change PATH or other Python installations. Do not delete selected Python while the application is running.
 
 <!-- page -->
 
@@ -234,3 +234,4 @@ Installation requires choosing **Update** rather than **Later**. Updates cannot 
 After checksum verification, the Studio closes, a separate helper replaces application files and restarts the new version. Ordinary replacement errors restore the previous files. Projects, models, settings and user files are preserved. Unchanged bundled libraries are verified and are not downloaded again. Replacing libraries requires additional free space; temporary **.updates** files are stored beside the application and successful downloads are cleaned after restart.
 
 For a first installation, download all **BotTrainingStudio-…-win-x64.part…rar** volumes into one folder and extract the first volume with a RAR-capable archiver. All libraries are included. Separate **app** and **libraries.zip.00…** assets are for the built-in updater; GitHub's automatically generated **Source code** archives are for developers. DOCX guides are also attached separately. A complete release can be extracted into a new folder; projects and settings are stored separately.
+

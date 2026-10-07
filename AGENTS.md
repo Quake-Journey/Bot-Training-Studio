@@ -43,8 +43,10 @@ Use ProcessStartInfo.ArgumentList; workers receive structured JSON, never shell
 command fragments. Preserve previous model generation on failure/cancel.
 End-user packages must include application/model libraries (including required
 GPU runtime DLLs); never require users to install PyTorch or full CUDA Toolkit.
-Reuse a compatible installed Python; if absent, offer automatic installation
-of Python alone. Do not download model libraries during that bootstrap.
+Include the pinned official Python 3.13 x64 archive in complete packages. Reuse
+compatible installed Python or a compute-verified complete Python 3.12+ environment;
+otherwise offer private offline installation from the package. Do not download
+Python or model libraries during user setup. This follows the PO's updated instruction.
 Keep model computation, process/stream management and protocol parsing off the
 UI thread. Bound/coalesce progress updates so worker output cannot flood the
 dispatcher. Closing during a job must ask first, default to keeping work, and

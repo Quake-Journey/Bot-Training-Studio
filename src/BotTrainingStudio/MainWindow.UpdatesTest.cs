@@ -47,6 +47,7 @@ public sealed partial class MainWindow
                 await Until(()=>_startupDialog?.IsVisible==true); await Task.Delay(250); Capture("startup-check-"+language);
                 blocked.SetResult();
                 await Until(()=>_startupDialog?.IsPrimaryButtonEnabled==true);
+                Check(_startupDialog!.PrimaryButtonText==L("Установить Python","Install Python"), "Startup offers offline bundled Python: "+language);
                 await Task.Delay(250); Capture("startup-missing-"+language);
                 string open= L("Открыть настройки", "Open Settings");
                 var button=_startupDialog!.GetVisualDescendants().OfType<Button>().Single(b=>b.Content?.ToString()==open);
@@ -56,8 +57,8 @@ public sealed partial class MainWindow
             }
             _runtimeProbe=validProbe; S.Language="ru"; App.ApplyLanguage(); Navigate("home");
             var continued=ShowStartupCheckAsync(()=>{_runtimeProbe=new(false,"Test missing Python");return Task.CompletedTask;});
-            await Until(()=>_startupDialog?.GetVisualDescendants().OfType<Button>().Any(b=>b.Content?.ToString()=="Продолжить без обучения")==true);
-            _startupDialog!.GetVisualDescendants().OfType<Button>().Single(b=>b.Content?.ToString()=="Продолжить без обучения")
+            await Until(()=>_startupDialog?.GetVisualDescendants().OfType<Button>().Any(b=>b.Content?.ToString()=="Без обучения")==true);
+            _startupDialog!.GetVisualDescendants().OfType<Button>().Single(b=>b.Content?.ToString()=="Без обучения")
                 .RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             await continued;
             Check(_page=="home" && !_lifetime.IsCancellationRequested,"Continue without training leaves Studio open on Home");
@@ -105,3 +106,4 @@ public sealed partial class MainWindow
         catch(Exception error) { File.WriteAllText(Path.Combine(folder,"updates-ui-test.json"),JsonSerializer.Serialize(new{pass=false,checks,error=error.ToString()},Updates.Json)); return 1; }
     }
 }
+

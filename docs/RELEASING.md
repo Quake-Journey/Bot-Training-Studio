@@ -29,8 +29,9 @@
    моделей, если они требуются этому выпуску. Исходный архив GitHub не является
    установочным пакетом. Пользователь не собирает программу и не устанавливает
    PyTorch либо CUDA Toolkit вручную.
-2. Python не включать в пакет: использовать совместимый установленный либо
-   предложить установку только Python. В примечаниях указывать проверенные ОС,
+2. Включать проверенный официальный архив Python 3.13 x64 в пакет. Использовать
+   совместимый установленный Python или готовую среду 3.12+; иначе предлагать
+   установку из комплекта без интернета. В примечаниях указывать проверенные ОС,
    архитектуры, backend и требования к драйверу; непроверенные AMD/Intel не
    объявлять поддержанными. Разные аппаратные пакеты подписывать однозначно.
 3. Актуальные русское и английское руководства DOCX внутри пакета и отдельными
@@ -74,8 +75,8 @@ This policy does not declare the current development preview complete.
   changed binaries. A development-policy edit alone is not a new application release.
 - Attach complete application packages, workers/native tools, application/model
   libraries, required model data/resources and licenses. The GitHub source archive
-  is not an installable package. Reuse compatible Python or offer installation of
-  Python alone; no user-side compiler, PyTorch or CUDA Toolkit setup.
+  is not an installable package. Include the pinned Python archive and offer
+  offline setup when compatible Python or a complete 3.12+ environment is unavailable; no user-side compiler, PyTorch or CUDA Toolkit setup.
 - Identify tested OS/architecture/backend/driver requirements and distinguish
   hardware packages. Do not advertise unqualified AMD/Intel support.
 - Update both RU/EN guides for changed behavior, regenerate/validate/render DOCX,
@@ -100,8 +101,9 @@ This policy does not declare the current development preview complete.
 directory and the `--rar` executable. It builds the complete multipart RAR,
 the smaller application ZIP, checksummed library ZIP parts, updater manifest,
 paired DOCX attachments and SHA256SUMS. Library parts can be prepared first with
-`--libraries-only`; a matching verified local receipt permits reuse. No Python
-interpreter, personal settings, recordings or trained models belong in this package.
+`--libraries-only`; a matching verified local receipt permits reuse. The pinned official Python archive belongs in `runtime/`; personal settings,
+recordings and trained models do not belong in this package. Run
+`scripts/fetch_python_embed.py` at build time before `build_preview.ps1`.
 
 `scripts/publish_release.py --assets <release-assets.json> --notes <release-body.md>`
 first verifies local files without publishing. Add `--publish` only for an

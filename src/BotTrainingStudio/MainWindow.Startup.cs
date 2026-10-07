@@ -19,7 +19,8 @@ public sealed partial class MainWindow
         var dialog = new FAContentDialog
         {
             Title = L("Подготовка студии", "Preparing the Studio"), Content = content,
-            PrimaryButtonText = L("Открыть настройки", "Open Settings"), IsPrimaryButtonEnabled = false,
+            PrimaryButtonText = L("Установить Python", "Install Python"), IsPrimaryButtonEnabled = false,
+            SecondaryButtonText = L("Открыть настройки", "Open Settings"), IsSecondaryButtonEnabled = false,
             CloseButtonText = L("Выйти", "Quit"), DefaultButton = FAContentDialogButton.Close
         };
         _startupDialog = dialog;
@@ -41,11 +42,22 @@ public sealed partial class MainWindow
             detail.Text = RuntimeSetup.Libraries == null
                 ? L("Не найдены библиотеки программы. Распакуй полный комплект студии. Просмотр проектов доступен без обучения.",
                     "The application libraries are missing. Extract the complete Studio package. You can still browse projects without training.")
-                : L("Совместимый Python не найден или не прошёл проверку. В настройках можно выбрать установленный Python или установить только Python. Библиотеки уже входят в комплект.",
-                    "Compatible Python was not found or did not pass the check. In Settings you can select installed Python or install Python alone. Libraries are already included.");
-            dialog.IsPrimaryButtonEnabled = true;
-            dialog.CloseButtonText = L("Продолжить без обучения", "Continue without training");
-            if (await shown == FAContentDialogResult.Primary && !_lifetime.IsCancellationRequested) Navigate("settings");
+                : _runtimeProbe?.Python is { Length: > 0 } version
+                    ? L("Найден Python ", "Found Python ") + version + L(". Эта среда не прошла проверку нужных библиотек. Python 3.13 x64 входит в комплект студии: установи его без интернета или выбери другую готовую среду в настройках.",
+                        ". This environment did not pass the required library check. Python 3.13 x64 is included: install it offline or choose another ready environment in Settings.")
+                    : L("Подходящая среда Python не найдена. Python 3.13 x64 входит в комплект студии: установи его без интернета или выбери готовую среду в настройках.",
+                        "No ready Python environment was found. Python 3.13 x64 is included: install it offline or choose a ready environment in Settings.");
+            bool canInstall = RuntimeSetup.Libraries != null && File.Exists(RuntimeSetup.BundledPythonArchive);
+            dialog.IsPrimaryButtonEnabled = canInstall;
+            dialog.IsSecondaryButtonEnabled = true;
+            dialog.CloseButtonText = L("Без обучения", "Skip training");
+            var result = await shown;
+            dialog.Hide(); _startupDialog = null;
+            if (!_lifetime.IsCancellationRequested)
+            {
+                if (canInstall && result == FAContentDialogResult.Primary) await InstallRuntimeAsync();
+                else if (result is FAContentDialogResult.Primary or FAContentDialogResult.Secondary) Navigate("settings");
+            }
         }
         finally { checking = false; dialog.Hide(); _startupDialog = null; }
     }

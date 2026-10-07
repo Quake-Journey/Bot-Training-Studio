@@ -55,6 +55,20 @@ internal static class RuntimeTest
             string output = Path.Combine(folder, "download-good.zip");
             using (var http = new HttpClient(new ResponseHandler(body))) await RuntimeSetup.DownloadAsync(http, good, output, _ => { }, default);
             Check(File.ReadAllBytes(output).SequenceEqual(body), "Verified archive downloaded intact");
+            string local = Path.Combine(folder, "local-good.zip");
+            await RuntimeSetup.CopyVerifiedArchiveAsync(output, local, hash, default);
+            Check(File.ReadAllBytes(local).SequenceEqual(body), "Bundled archive copied and verified without network");
+            await Reject(() => RuntimeSetup.CopyVerifiedArchiveAsync(output, Path.Combine(folder, "local-bad.zip"), new string('0', 64), default), "Corrupt bundled Python rejected by SHA256");
+            if (args.Contains("--existing-python"))
+            {
+                string python = args[Array.IndexOf(args, "--existing-python") + 1];
+                var probe = await RuntimeSetup.ProbeAsync(python);
+                Check(probe.Ready && !probe.UsesBundledLibraries, "Complete external Python environment passes real computation without cp313 libraries");
+                var settings = new StudioSettings { Python = python, PythonUsesBundledLibraries = false,
+                    WorkerDirectory = Path.Combine(AppContext.BaseDirectory, "worker") };
+                var result = await new JobRunner().RunAsync(settings, new() { ["action"] = "hardware" });
+                Check(result.GetProperty("type").GetString() == "completed", "Studio worker executes with complete external Python environment");
+            }
             using (var http = new HttpClient(new ResponseHandler([1, 2, 3])))
                 await Reject(() => RuntimeSetup.DownloadAsync(http, good, Path.Combine(folder, "bad-hash.zip"), _ => { }, default), "Corrupt download rejected by SHA256");
             using (var http = new HttpClient(new ResponseHandler(body, HttpStatusCode.ServiceUnavailable)))

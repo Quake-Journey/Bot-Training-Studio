@@ -2,17 +2,17 @@
 
 The application/model libraries are included in the end-user package. They
 are prepared from a qualified builder runtime by `bundle_libraries.py`, without
-copying Python. Users never install PyTorch or the full CUDA Toolkit.
+copying Python site-packages. The pinned official interpreter archive is shipped separately in runtime/. Users never install PyTorch or the full CUDA Toolkit.
 
 The application reuses an installed Python 3.13 x64 (selection, PATH, Windows
 Python registration, previous managed installation). If missing it offers to
-download **only CPython**, using .NET; no Python/pip is needed for bootstrap.
+install the included **CPython archive offline**, using .NET; no Python/pip is needed for bootstrap. Complete Python 3.12+ environments can instead supply their own compute-verified libraries.
 The private installation needs no admin rights, registry or PATH changes.
 Mapgen Studio's install-or-choose workflow was reviewed and followed.
 
 `packaging/runtime-{cpu,cuda}-win-x64.lock.json` is embedded in the EXE and
 shared with the build-time bundler. URLs and SHA256 digests are pinned.
-Downloaded Python is verified before extraction; unexpected
+Bundled Python is SHA256-verified before extraction; unexpected
 sources, corrupt downloads, archive links and escaping paths are rejected.
 The installer never downloads model libraries. Package libraries are passed
 to probes and workers explicitly, with system site-packages disabled. Moving
@@ -38,7 +38,7 @@ never upgraded in place.
 
 - `--runtime-test <new-directory>`: manifest, icon extraction, hash/network
   failures, invalid EXE, archive layouts, path boundaries and cancellation.
-- `--setup-ui-test <new-directory> cuda` with a **fresh BTS_HOME**: real Python download
+- `--setup-ui-test <new-directory> cuda` with a **fresh BTS_HOME**: real offline Python setup
   without Python on PATH, UI navigation, exit prompt, cancellation, retry,
   activation, reload, repeated setup, reuse of an existing bare Python and a
   real worker operation using the packaged libraries.
@@ -47,7 +47,7 @@ never upgraded in place.
 - `--ui-test <directory>` and `--lifecycle-test <python> <directory>`: rendered
   RU/EN UI and preservation of training cancellation/exit behaviour.
 
-The end-to-end setup test downloads only Python. Run it in a disposable local
+The end-to-end setup test installs bundled Python without network access. Run it in a disposable local
 application home; never point it at real user settings or projects.
 
 ## Upstream contracts
@@ -60,7 +60,7 @@ application home; never point it at real user settings or projects.
 These sources were checked on 7 October 2026. CPU and CUDA manifests retain the
 already tested versions; AMD/Intel remain separate unqualified backends.
 
-## Verified final package (7 October 2026)
+## Previous package verification (before bundled Python)
 
 - 24 offline checks passed, including PE validation before execution and icon
   extraction through the Windows shell.

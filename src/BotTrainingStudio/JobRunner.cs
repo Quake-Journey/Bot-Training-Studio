@@ -61,11 +61,13 @@ public sealed class JobRunner
         }
         // Capture paths now: browsing settings during training cannot redirect the running job.
         string python = settings.Python, worker = settings.WorkerDirectory;
+        bool useBundledLibraries = settings.PythonUsesBundledLibraries;
         var snapshot = new Dictionary<string, object?>(request);
-        return Task.Run(() => RunCoreAsync(python, worker, snapshot, run));
+        return Task.Run(() => RunCoreAsync(python, worker, useBundledLibraries, snapshot, run));
     }
 
-    private async Task<JsonElement> RunCoreAsync(string python, string worker, Dictionary<string, object?> request, RunState run)
+    private async Task<JsonElement> RunCoreAsync(string python, string worker, bool useBundledLibraries,
+        Dictionary<string, object?> request, RunState run)
     {
         try
         {
@@ -91,14 +93,15 @@ public sealed class JobRunner
                 WorkingDirectory = worker
             };
             info.ArgumentList.Add("-I");
-            if (RuntimeSetup.Libraries != null) info.ArgumentList.Add("-S");
+            string library = useBundledLibraries ? RuntimeSetup.Libraries?.Directory ?? "" : "";
+            if (library.Length > 0) info.ArgumentList.Add("-S");
             info.ArgumentList.Add("-X");
             info.ArgumentList.Add("utf8");
             info.ArgumentList.Add("-u");
             info.ArgumentList.Add("-c");
             info.ArgumentList.Add("import runpy,sys; worker=sys.argv.pop(1); library=sys.argv.pop(1); sys.path.insert(0,library) if library else None; sys.path.insert(0,worker); runpy.run_module('opentdm_x_trainer.studio',run_name='__main__')");
             info.ArgumentList.Add(Path.GetFullPath(worker));
-            info.ArgumentList.Add(RuntimeSetup.Libraries?.Directory ?? "");
+            info.ArgumentList.Add(library);
             info.ArgumentList.Add("--request");
             info.ArgumentList.Add(path);
             using var stderr = new StreamWriter(Path.Combine(_folder, "stderr.txt"));

@@ -30,8 +30,8 @@ public sealed partial class MainWindow
             Environment.SetEnvironmentVariable("BTS_HOME", Path.Combine(StudioSettings.Home, "exit-attempt"));
             S.Language = "en"; S.RuntimeBackend = "cuda"; S.Save(); App.ApplyLanguage();
             var installation = InstallRuntimeAsync();
-            await Until(() => _setupProgress?.Stage == "downloading" || installation.IsCompleted);
-            Check(!installation.IsCompleted, "Replacement runtime is downloading");
+            await Until(() => _setupProgress is { Stage: "checking", Fraction: > .9 } || installation.IsCompleted);
+            Check(!installation.IsCompleted, "Replacement runtime is being compute-checked");
             Close();
             await Until(() => _exitDialog?.GetVisualDescendants().OfType<Button>().Any(b => b.Content?.ToString() == "Stop and quit") == true);
             Check(!closed && _setupCancellation?.IsCancellationRequested == false, "Close dialog itself does not abort setup");
@@ -79,18 +79,21 @@ public sealed partial class MainWindow
         {
             Check(Icon != null, "Window has explicit application icon");
             S.Python = ""; S.RuntimeBackend = backend; S.Language = "ru"; S.Save();
-            // No Python on PATH. The application must provision its own interpreter and packages.
+            // No Python on PATH. Install the packaged interpreter through the startup dialog.
             Environment.SetEnvironmentVariable("PATH", Environment.GetFolderPath(Environment.SpecialFolder.System));
             _runtimeProbe = new(false, ""); _runtimeProbePath = ""; Navigate("settings");
             beat.Start();
             Capture("ru-setup-missing");
-            var install = InstallRuntimeAsync();
-            await Until(() => _setupProgress?.Stage == "downloading" || install.IsCompleted);
-            Check(!install.IsCompleted, "Download starts without system Python");
+            var install = ShowStartupCheckAsync(() => { _runtimeProbe = new(false, "Test missing Python"); return Task.CompletedTask; });
+            await Until(() => _startupDialog?.GetVisualDescendants().OfType<Button>().Any(b => b.Content?.ToString() == "Установить Python") == true);
+            _startupDialog!.GetVisualDescendants().OfType<Button>().Single(b => b.Content?.ToString() == "Установить Python")
+                .RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            await Until(() => _setupProgress is { Stage: "checking", Fraction: > .9 } || install.IsCompleted);
+            Check(!install.IsCompleted, "Offline setup starts without system Python");
             foreach (var page in new[] { "train", "models", "jobs", "home", "settings" }) { Navigate(page); await Task.Delay(60); Check(_page == page, "Setup allows navigation: " + page); }
-            int before = ticks; await Task.Delay(300); Check(ticks-before >= 5, "UI responds during real download");
+            int before = ticks; await Task.Delay(300); Check(ticks-before >= 5, "UI responds during offline setup");
             Start("hardware"); Check(!_runner.IsRunning, "Training cannot race installation");
-            Capture("ru-setup-downloading");
+            Capture("ru-setup-extracting");
             Close();
             await Until(() => _exitDialog?.GetVisualDescendants().OfType<Button>().Any(b => b.Content?.ToString() == _exitDialog.CloseButtonText) == true);
             Check(_exitDialog!.DefaultButton == FAContentDialogButton.Close, "Closing setup defaults to keep working");
@@ -101,8 +104,8 @@ public sealed partial class MainWindow
             Check(_setupCancellation != null && !_setupCancellation.IsCancellationRequested, "Keep working leaves installation running");
             await RequestStopAsync(); await install;
             Check(!JobActive && string.IsNullOrEmpty(S.Python), "Cancellation preserves selected runtime");
-            Check(!Directory.EnumerateDirectories(Path.Combine(StudioSettings.Home, "runtimes"), ".setup-*").Any(), "Cancelled download staging cleaned up");
-            Check(RuntimeSetup.FindManaged(StudioSettings.Home, backend) == null, "Cancelled download never becomes active");
+            Check(!Directory.EnumerateDirectories(Path.Combine(StudioSettings.Home, "runtimes"), ".setup-*").Any(), "Cancelled offline setup staging cleaned up");
+            Check(RuntimeSetup.FindManaged(StudioSettings.Home, backend) == null, "Cancelled offline setup never becomes active");
             S.Language = "en"; App.ApplyLanguage(); Navigate("settings"); Capture("en-setup-retry");
             install = InstallRuntimeAsync();
             await Until(() => install.IsCompleted, 1800); await install;
@@ -111,7 +114,8 @@ public sealed partial class MainWindow
             Check(StudioSettings.Load().Python == S.Python, "Installed Python remembered after reload");
             Check(_runtimeProbe!.Torch == (backend == "cuda" ? "2.10.0+cu128" : "2.10.0+cpu"), "Exact pinned PyTorch imported");
             Check(RuntimeSetup.Libraries != null, "Model libraries are supplied in the application package");
-            Check(!Directory.Exists(Path.Combine(Path.GetDirectoryName(S.Python)!, "Lib", "site-packages", "torch")), "Setup installs only Python without downloading model libraries");
+            Check(File.Exists(RuntimeSetup.BundledPythonArchive), "Python archive is supplied in the application package");
+            Check(!Directory.Exists(Path.Combine(Path.GetDirectoryName(S.Python)!, "Lib", "site-packages", "torch")), "Setup installs only Python without downloading or copying model libraries");
             if (backend == "cuda") Check(_runtimeProbe.Cuda, "CUDA runtime detects the test GPU");
             string original = S.Python;
             await InstallRuntimeAsync();
@@ -128,7 +132,9 @@ public sealed partial class MainWindow
             Navigate("home"); Capture("en-setup-complete");
             var result = await _runner.RunAsync(S, new() { ["action"] = "hardware" });
             Check(result.GetProperty("type").GetString() == "completed", "Actual Studio worker runs with newly installed Python");
-            Check(maxGap < 1500, "No long UI stall during downloads and extraction");
+            result = await _runner.RunAsync(S, new() { ["action"] = "probe", ["backend"] = backend, ["profile"] = "compact" });
+            Check(result.GetProperty("type").GetString() == "completed", "Packaged libraries execute a real model forward/backward on " + backend);
+            Check(maxGap < 1500, "No long UI stall during offline extraction and checks");
             await File.WriteAllTextAsync(Path.Combine(folder, "setup-ui-test.json"), JsonSerializer.Serialize(new { pass = true, checks, ticks, max_ui_gap_ms = maxGap, python = S.Python }, new JsonSerializerOptions { WriteIndented = true }));
             return 0;
         }
@@ -141,3 +147,4 @@ public sealed partial class MainWindow
         finally { beat.Stop(); }
     }
 }
+

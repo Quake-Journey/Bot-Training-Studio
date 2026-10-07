@@ -1,5 +1,19 @@
 [
   {
+    "version": "0.3.0-preview.3",
+    "date": "2026-10-07",
+    "ru": [
+      "Python 3.13 x64 включён в полный пакет. При отсутствии подходящей среды стартовое окно предлагает установить его из комплекта без интернета и прав администратора.",
+      "Готовые окружения Python 3.12 и новее с необходимыми библиотеками проходят проверку вычислений и могут использоваться напрямую; несовместимые двоичные библиотеки комплекта в них не подмешиваются.",
+      "Обновлены установка, проверка целостности, встроенное обновление и руководства RU/EN для комплектного Python."
+    ],
+    "en": [
+      "Python 3.13 x64 is included in the complete package. If no ready environment is found, the startup dialog offers offline installation from the package without administrator access.",
+      "Complete Python 3.12+ environments with the required libraries can be reused after computation checks; incompatible bundled binary libraries are not injected into them.",
+      "Updated setup, integrity checks, application updates and RU/EN guides for bundled Python."
+    ]
+  },
+  {
     "version": "0.3.0-preview.2",
     "date": "2026-10-07",
     "ru": [

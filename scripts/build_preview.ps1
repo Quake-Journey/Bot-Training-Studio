@@ -16,6 +16,16 @@ if (!$DocsPython) {
 }
 & $DocsPython -I (Join-Path $repoRoot 'scripts\build_user_docs.py') --check
 if ($LASTEXITCODE -ne 0) { throw 'Both RU/EN DOCX guides must be rebuilt before packaging' }
+if (!$DevelopmentOnly) {
+    $pythonLock = Get-Content -LiteralPath (Join-Path $repoRoot 'packaging\runtime-cpu-win-x64.lock.json') -Raw | ConvertFrom-Json
+    $pythonName = [IO.Path]::GetFileName(([uri]$pythonLock.python_url).AbsolutePath)
+    $pythonArchive = Join-Path $repoRoot "dist\python-embed\$pythonName"
+    if (!(Test-Path -LiteralPath $pythonArchive -PathType Leaf)) { throw 'Cache the bundled interpreter first: scripts/fetch_python_embed.py' }
+    if ((Get-FileHash -LiteralPath $pythonArchive -Algorithm SHA256).Hash -ne $pythonLock.python_sha256) { throw 'Bundled Python checksum mismatch' }
+    $runtimeOutput = Join-Path $Output 'runtime'
+    New-Item -ItemType Directory -Force -Path $runtimeOutput | Out-Null
+    Copy-Item -LiteralPath $pythonArchive -Destination $runtimeOutput -Force
+}
 # Incremental local build only: no recursive deletion or publication.
 & dotnet publish (Join-Path $repoRoot 'src\BotTrainingStudio\BotTrainingStudio.csproj') -c Release -r win-x64 --self-contained true -o $Output --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed' }
@@ -41,5 +51,5 @@ $docOutput = Join-Path $Output 'docs'
 New-Item -ItemType Directory -Force -Path $docOutput | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $repoRoot 'docs') -File | Where-Object Extension -in @('.md','.docx','.json') | Copy-Item -Destination $docOutput -Force
 $hash = Get-FileHash -LiteralPath (Join-Path $Output 'BotTrainingStudio.exe') -Algorithm SHA256
-[ordered]@{ version = $projectVersion; scope = 'development-preview'; exe_sha256 = $hash.Hash; bundled_libraries = (Test-Path -LiteralPath (Join-Path $Output 'libraries\studio-libraries.json')); python_bootstrap = $true; game_installable = $false } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Output 'build.json') -Encoding UTF8
+[ordered]@{ version = $projectVersion; scope = 'development-preview'; exe_sha256 = $hash.Hash; bundled_libraries = (Test-Path -LiteralPath (Join-Path $Output 'libraries\studio-libraries.json')); bundled_python = !$DevelopmentOnly; python_bootstrap = $true; game_installable = $false } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Output 'build.json') -Encoding UTF8
 Write-Output (Join-Path $Output 'BotTrainingStudio.exe')
