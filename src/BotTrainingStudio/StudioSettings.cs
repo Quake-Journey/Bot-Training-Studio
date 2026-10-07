@@ -41,6 +41,8 @@ public sealed class StudioSettings
     private static extern bool GetUserPreferredUILanguages(uint flags, out uint count, [Out] char[]? buffer, ref uint length);
     [DllImport("kernel32.dll")] private static extern ushort GetUserDefaultUILanguage();
     public string Theme { get; set; } = "dark";
+    public bool AutoUpdateCheck { get; set; } = true;
+    public string LastSeenVersion { get; set; } = "";
     public string Python { get; set; } = "";
     public string WorkerDirectory { get; set; } = "";
     public string Backend { get; set; } = "auto";

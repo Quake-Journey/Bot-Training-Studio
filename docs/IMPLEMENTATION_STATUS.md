@@ -22,6 +22,7 @@ success does not close tactical learning or gameplay validation.
 - [x] Background protocol processing, bounded UI event delivery and confirmed cooperative exit; real checkpoint-cancellation checks.
 - [x] System/Russian/English UI selection and paired, packaged DOCX user guides with freshness checks.
 - [x] Windows EXE/window icon; packaged CPU/NVIDIA libraries and reuse/automatic installation of Python alone, with asynchronous cancellation and verified computation. AMD/Intel packaging remains unqualified.
+- [x] Persistent CPU/GPU selection independent of Python readiness; centralized version, bilingual first-launch/manual history and verified GitHub updates with cancellation and rollback.
 - [ ] Real demo/map regression tests, clean-machine/package checks and docs.
 
 Game DLL loading/execution remains excluded. Actual online match quality with a

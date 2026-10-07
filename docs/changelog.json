@@ -1,0 +1,26 @@
+[
+  {
+    "version": "0.3.0-preview.1",
+    "date": "2026-10-07",
+    "ru": [
+      "Постоянный выбор CPU/GPU на главной странице, в обучении и настройках: проверка Python больше не скрывает выбор вычислений.",
+      "Номер версии в заголовке и интерфейсе; список изменений при первом запуске новой версии и кнопка «Что нового».",
+      "Автоматическая проверка GitHub Releases и ручная кнопка обновления. Установка обновления доступна после завершения заданий, с проверкой файлов и восстановлением прежней сборки при ошибке.",
+      "Библиотеки программы и модели входят в комплект; используется совместимый установленный Python или предлагается установка только Python.",
+      "Иконка приложения и обновлённые руководства на русском и английском. Это предварительная исследовательская версия; полноценная тактика и экспорт в игровой мод ещё не готовы."
+    ],
+    "en": [
+      "Persistent CPU/GPU selection on Home, Training and Settings: checking Python no longer hides computation choices.",
+      "Version in the title and interface; change notes on the first launch of a new version and an on-demand What's new button.",
+      "Automatic GitHub Releases checks and a manual update button. Updates wait for jobs to finish, verify files and restore the previous build on installation errors.",
+      "Application and model libraries are included; compatible installed Python is reused or installation of Python alone is offered.",
+      "Application icon and updated Russian/English guides. This remains a research preview; full tactical learning and game-module export are not complete."
+    ]
+  },
+  {
+    "version": "0.2.0",
+    "date": "2026-10-07",
+    "ru": ["Исходная предварительная студия: импорт карт и записей, экспериментальное обучение, профили памяти, RU/EN интерфейс и мониторинг ресурсов."],
+    "en": ["Initial development preview: map/recording import, experimental learning, memory profiles, RU/EN interface and resource monitoring."]
+  }
+]

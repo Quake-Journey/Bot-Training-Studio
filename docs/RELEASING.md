@@ -15,8 +15,9 @@
   пользовательский выпуск нельзя подменять непроверенной сборкой разработчика.
 - Версия должна совпадать в приложении, метаданных EXE, `build.json`, руководствах,
   названии архива и Git-теге `v<version>`. Перед сборкой сверить значение
-  `Version` в `src/BotTrainingStudio/BotTrainingStudio.csproj` и версию, которую
-  записывает `scripts/build_preview.ps1`; не оставлять старую константу в сборщике.
+  `Version` в `src/BotTrainingStudio/BotTrainingStudio.csproj`. UI, EXE,
+  `scripts/build_preview.ps1`, генератор DOCX и упаковщик читают эту версию;
+  первая запись `docs/changelog.json` должна ей соответствовать.
 - Опубликованный номер не использовать повторно для изменённых исполняемых файлов.
   Следующее исправление получает следующую версию. Правка только правил разработки
   сама по себе не означает, что выпущена новая версия приложения.
@@ -67,8 +68,9 @@ This policy does not declare the current development preview complete.
   for compatible features; decide major-version and migration requirements for
   incompatible changes. Mark preview releases explicitly.
 - Keep the application/UI, EXE metadata, `build.json`, guides, archive names and
-  `v<version>` tag consistent. Check both the project `Version` and the version
-  written by `scripts/build_preview.ps1`. Never reuse a published version for
+  `v<version>` tag consistent. The project `Version` is the source for the UI,
+  EXE, build metadata, guides and packager; match the first `docs/changelog.json`
+  entry to it. Never reuse a published version for
   changed binaries. A development-policy edit alone is not a new application release.
 - Attach complete application packages, workers/native tools, application/model
   libraries, required model data/resources and licenses. The GitHub source archive
@@ -91,3 +93,31 @@ This policy does not declare the current development preview complete.
   checksums and tag/commit consistency, then report the version, release page and
   validation scope. If approval is needed, present the concrete verified package;
   existing publication authorization persists without repeated general requests.
+
+## Release tooling / Инструменты выпуска
+
+`scripts/build_release.py` takes a qualified `--package`, a new `--out`
+directory and the `--rar` executable. It builds the complete multipart RAR,
+the smaller application ZIP, checksummed library ZIP parts, updater manifest,
+paired DOCX attachments and SHA256SUMS. Library parts can be prepared first with
+`--libraries-only`; a matching verified local receipt permits reuse. No Python
+interpreter, personal settings, recordings or trained models belong in this package.
+
+`scripts/publish_release.py --assets <release-assets.json> --notes <release-body.md>`
+first verifies local files without publishing. Add `--publish` only for an
+authorized release: source must be clean and pushed, tag must match HEAD.
+Git's credential helper supplies authentication without output or storage of
+the token. Assets upload to a draft; the draft is published only after GitHub's
+size and SHA256 digest match every asset. Never replace a published build.
+
+Полный RAR — для первой установки пользователем; все тома лежат вместе,
+распаковывается первый. App ZIP и library ZIP parts — для встроенного обновлятора,
+их нельзя выдавать за полный установочный комплект. Предварительные выпуски
+публикуются с признаком prerelease. Проверка обновлений включена по умолчанию;
+установка требует подтверждения и не прерывает задания.
+
+The full RAR is the first-install package; extract its first volume with all
+volumes in one folder. App ZIP/library parts are updater assets, not complete
+user installations. Preview builds use GitHub's prerelease flag. Automatic
+checking is enabled by default; installing requires confirmation and cannot
+interrupt a running job.

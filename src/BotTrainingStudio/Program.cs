@@ -11,6 +11,8 @@ internal static class Program
     {
         // Setup errors belong in our UI/log, never a modal Windows loader/drive error box.
         if (OperatingSystem.IsWindows()) SetErrorMode(0x8003);
+        if (args.Length == 2 && args[0] == "--apply-update") return UpdateInstaller.ApplyAsync(args[1]).GetAwaiter().GetResult();
+        if (args.Length == 2 && args[0] == "--update-test") return UpdateTest.Run(args[1]).GetAwaiter().GetResult();
         if (args.Contains("--runtime-test")) return RuntimeTest.Run(args).GetAwaiter().GetResult();
         if (args.Contains("--language-test")) return LanguageTest.Run(args);
         if (args.Contains("--resource-load")) return ResourceTest.Load();

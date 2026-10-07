@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 MANIFEST = DOCS / "user-guides.json"
+VERSION = ET.parse(ROOT / 'src/BotTrainingStudio/BotTrainingStudio.csproj').findtext('./PropertyGroup/Version')
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 
 
@@ -90,13 +91,13 @@ def build(language):
     header.runs[0].font.color.rgb = RGBColor.from_string("777389")
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    footer.add_run(f"{language}  •  0.2  •  by ly     |     ").font.size = Pt(8)
+    footer.add_run(f"{language}  •  {VERSION}  •  by ly     |     ").font.size = Pt(8)
     field = OxmlElement("w:fldSimple"); field.set(qn("w:instr"), "PAGE")
     footer._p.append(field)
     props = doc.core_properties
     props.title = "Bot Training Studio — " + ("Руководство пользователя" if language == "RU" else "User guide")
     props.author = props.last_modified_by = "Quake Journey"
-    props.subject = "Version 0.2 development preview"
+    props.subject = f"Version {VERSION} development preview"
     props.language = "ru-RU" if language == "RU" else "en-US"
     props.comments = ""
     props.created = props.modified = datetime(2026, 10, 7, tzinfo=timezone.utc)
@@ -168,6 +169,7 @@ def build(language):
 
 def check():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    if manifest['version'] != VERSION: raise ValueError('Guide version does not match the application')
     if manifest["builder_sha256"] != sha(Path(__file__).read_bytes()): raise ValueError("DOCX builder changed; rebuild both guides")
     if {entry["language"] for entry in manifest["guides"]} != {"RU", "EN"}: raise ValueError("Both guides are required")
     for entry in manifest["guides"]:
@@ -182,7 +184,7 @@ def main():
     if args.check: check()
     else:
         guides = [build(language) for language in ("RU", "EN")]
-        MANIFEST.write_text(json.dumps(dict(schema=1, version="0.2", builder_sha256=sha(Path(__file__).read_bytes()), guides=guides), indent=2) + "\n", encoding="utf-8")
+        MANIFEST.write_text(json.dumps(dict(schema=1, version=VERSION, builder_sha256=sha(Path(__file__).read_bytes()), guides=guides), indent=2) + "\n", encoding="utf-8")
     print(json.dumps(dict(pass_=True, guides=2, mode="check" if args.check else "build")))
 
 

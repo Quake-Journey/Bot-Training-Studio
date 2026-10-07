@@ -1,6 +1,6 @@
 # Bot Training Studio by ly
 
-User guide • English • Version 0.2, development preview
+User guide • English • Version 0.3.0-preview.1, development preview
 
 Updated: 7 October 2026
 
@@ -91,6 +91,8 @@ In **Training**, list project folders, one per line. **Add current map** adds th
 **Prepare project data** creates a sequence-model dataset. Related matches are split as whole groups into training, generation selection and final evaluation. Evaluation recordings must not leak into training. If there are too few independent groups, add recordings rather than mixing partitions.
 
 ### Profile and device
+
+**Computation: CPU / GPU** is always available on Home and Settings, and in training options. It remains visible after Python validation and persists across launches. **Automatic** chooses an available GPU, otherwise CPU. You can explicitly select **NVIDIA GPU (CUDA)** or **CPU — processor**. Experimental AMD/Intel choices require matching libraries; this package does not qualify their support. The GPU list in the load panel changes monitoring only, not training computation.
 
 | Setting | Purpose |
 | --- | --- |
@@ -186,6 +188,8 @@ The Russian and English guides ship in the application's **docs** folder: **Bot_
 
 Repository: https://github.com/Quake-Journey/Bot-Training-Studio
 
+Builds: https://github.com/Quake-Journey/Bot-Training-Studio/releases
+
 The project is distributed under GPL-2.0-or-later. Dependency licenses remain in the package. File names, technical commands and format keys are the same in both languages.
 
 <!-- page -->
@@ -210,3 +214,17 @@ The Studio checks the selected Python, then searches PATH and Windows Python reg
 **Cancel installation** stops downloading or extraction and removes incomplete files from the attempt. Closing the window first asks whether to keep working. The previous Python is preserved. Retry after a network error; incomplete downloads start over. A healthy installed Python is reused without downloading again.
 
 Automatically installed Python lives in **runtimes** under the Studio data directory (section 6). Administrator access is not needed; setup does not change PATH or other Python installations. Do not delete the selected Python while the application is running.
+
+<!-- page -->
+
+## 9. Version, change notes and updates
+
+The exact version appears in the window title and sidebar. **What's new** opens on the first launch of a new version; once acknowledged, it is not automatically repeated for that version. The **What's new** button in the sidebar and settings opens the history at any time, offline.
+
+**Settings → Version and updates** enables automatic checks by default; you can turn them off. **Update** and **Check for updates** use published GitHub Releases. A preview build sees newer previews; drafts are excluded. A network failure does not mean the installed version is current.
+
+Installation requires choosing **Update** rather than **Later**. Updates cannot install during training or Python setup: finish the job and check again. Downloading and verification run in the background. Closing during a download offers to keep working or cancel the download and exit, preserving the installed application.
+
+After checksum verification, the Studio closes, a separate helper replaces application files and restarts the new version. Ordinary replacement errors restore the previous files. Projects, models, settings and user files are preserved. Unchanged bundled libraries are verified and are not downloaded again. Replacing libraries requires additional free space; temporary **.updates** files are stored beside the application and successful downloads are cleaned after restart.
+
+For a first installation, download all **BotTrainingStudio-…-win-x64.part…rar** volumes into one folder and extract the first volume with a RAR-capable archiver. All libraries are included. Separate **app** and **libraries.zip.00…** assets are for the built-in updater; GitHub's automatically generated **Source code** archives are for developers. DOCX guides are also attached separately. A complete release can be extracted into a new folder; projects and settings are stored separately.

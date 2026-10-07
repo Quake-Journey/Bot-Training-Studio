@@ -1,6 +1,9 @@
 param([string]$Output = '', [string]$DocsPython = '', [switch]$DevelopmentOnly)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
+$projectFile = Join-Path $repoRoot 'src\BotTrainingStudio\BotTrainingStudio.csproj'
+$projectVersion = ([xml](Get-Content -LiteralPath $projectFile -Raw)).Project.PropertyGroup.Version
+if (!$projectVersion) { throw 'Missing application version' }
 if (!$Output) { $Output = Join-Path $repoRoot 'dist\portable-preview-win-x64' }
 $Output = [IO.Path]::GetFullPath($Output)
 if (!$DevelopmentOnly -and !(Test-Path -LiteralPath (Join-Path $Output 'libraries\studio-libraries.json') -PathType Leaf)) {
@@ -38,5 +41,5 @@ $docOutput = Join-Path $Output 'docs'
 New-Item -ItemType Directory -Force -Path $docOutput | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $repoRoot 'docs') -File | Where-Object Extension -in @('.md','.docx','.json') | Copy-Item -Destination $docOutput -Force
 $hash = Get-FileHash -LiteralPath (Join-Path $Output 'BotTrainingStudio.exe') -Algorithm SHA256
-[ordered]@{ version = '0.2.0-preview'; scope = 'local-development'; exe_sha256 = $hash.Hash; bundled_libraries = (Test-Path -LiteralPath (Join-Path $Output 'libraries\studio-libraries.json')); python_bootstrap = $true; game_installable = $false } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Output 'build.json') -Encoding UTF8
+[ordered]@{ version = $projectVersion; scope = 'development-preview'; exe_sha256 = $hash.Hash; bundled_libraries = (Test-Path -LiteralPath (Join-Path $Output 'libraries\studio-libraries.json')); python_bootstrap = $true; game_installable = $false } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Output 'build.json') -Encoding UTF8
 Write-Output (Join-Path $Output 'BotTrainingStudio.exe')

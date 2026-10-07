@@ -145,6 +145,7 @@ public sealed partial class MainWindow
 
     private Task<bool> RequestStopAsync()
     {
+        if (_updateCancellation is { } update) { update.Cancel(); return Task.FromResult(true); }
         if (_setupCancellation is { } setup) { setup.Cancel(); return Task.FromResult(true); }
         return _runner.CancelAsync();
     }

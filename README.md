@@ -2,7 +2,7 @@
 
 Локальная программа обучения ботов OpenTDM-X по опыту игроков.
 
-**0.2 — предварительная версия для разработки.** Работают прямой импорт
+**0.3.0-preview.1 — предварительная версия для разработки.** Работают прямой импорт
 BSP + DM2/MVD2, проекты карт, извлечение маршрутов и обучение по истории
 матчей. Это офлайн-исследование: полноценная тактическая модель ещё не готова,
 устанавливать полученные пакеты в текущий игровой мод нельзя.
@@ -12,10 +12,19 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 Читать на GitHub: [RU](docs/USER_GUIDE_RU.md) · [EN](docs/USER_GUIDE_EN.md).
 В программе они доступны в «Настройки → Документация».
 
-Готовые пользовательские сборки будут доступны в
+Полные предварительные сборки доступны в
 [GitHub Releases](https://github.com/Quake-Journey/Bot-Training-Studio/releases)
 с номером версии, описанием изменений и документацией. Текущая версия остаётся
 предварительной. [Правила выпуска и нумерации](docs/RELEASING.md).
+
+## Что нового в 0.3.0-preview.1
+
+- Постоянный выбор CPU/GPU: обнаружение Python больше не скрывает настройку вычислений.
+- Номер версии, история изменений RU/EN, показ изменений при первом запуске обновления.
+- Автоматическая проверка GitHub Releases и кнопка обновления, проверка архивов, отмена и восстановление прежних файлов при ошибке установки.
+- Обновление сохраняет проекты, модели и настройки; неизменившиеся библиотеки повторно не скачиваются.
+
+[Полный список изменений RU](docs/CHANGELOG.ru.md) · [English change notes](docs/CHANGELOG.en.md).
 
 ## Что работает
 
@@ -90,6 +99,7 @@ Python и компиляции DLL на стороне пользователя.
 ## English
 
 An independent offline desktop training application for OpenTDM-X bots.
+Version **0.3.0-preview.1** adds persistent compute-device selection, bilingual change notes and verified GitHub updates with cancellation and rollback.
 This development preview contains a bilingual Avalonia UI, bundled native
 demo/physics tools, transactional map projects, sequence learning and continual
 replay. CPU/CUDA model libraries are bundled; compatible Python is reused or
@@ -98,7 +108,7 @@ installed separately by the application.
 No game-module source, private recordings or pretrained weights are included.
 See the architecture and validation documents for current limits.
 
-Ready end-user builds will be published in
+Complete preview builds are published in
 [GitHub Releases](https://github.com/Quake-Journey/Bot-Training-Studio/releases)
 with version numbers, change notes and documentation. This remains a development
 preview. See the bilingual [release policy](docs/RELEASING.md).

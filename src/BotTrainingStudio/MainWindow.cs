@@ -35,7 +35,7 @@ public sealed partial class MainWindow : Window
     private bool _jobUiActive;
     private FAContentDialog? _exitDialog;
     private readonly Button _stay = new() { IsVisible = false };
-    private bool JobActive => _runner.IsRunning || _jobUiActive || _setupCancellation != null;
+    private bool JobActive => _runner.IsRunning || _jobUiActive || _setupCancellation != null || _updateCancellation != null;
     private StudioSettings S => App.Settings;
     private string L(string ru, string en) => S.EffectiveLanguage == "ru" ? ru : en;
     private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#8b83ff"));
@@ -43,7 +43,7 @@ public sealed partial class MainWindow : Window
 
     public MainWindow(bool checkRuntime = true)
     {
-        Title = "Bot Training Studio by ly";
+        Title = "Bot Training Studio " + AppVersion.Current + " by ly";
         using (var icon = RuntimeSetup.Resource("studio.ico")) Icon = new WindowIcon(icon);
         _checkRuntime = checkRuntime;
         _resources = new ResourceSampler(() => _runner.WorkerPid);
@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         _eventTimer.Tick += (_, _) => FlushEvents();
         _stay.Click += (_, _) => { _exitAfterJob = false; _stay.IsVisible = false; };
         Opened += async (_, _) => { _resourceTimer.Start(); _eventTimer.Start(); if (_checkRuntime) await RefreshRuntimeAsync(); };
+        Opened += async (_, _) => { if (_checkRuntime) await FirstVersionStartAsync(); };
         Closed += (_, _) => { _lifetime.Cancel(); _resourceTimer.Stop(); _eventTimer.Stop(); _resources.Dispose(); };
         Width = 1180; Height = 820; MinWidth = 980; MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -72,8 +73,8 @@ public sealed partial class MainWindow : Window
         {
             _exitDialog = new FAContentDialog
             {
-                Title = _setupCancellation != null ? L("Среда ещё устанавливается", "Runtime installation is in progress") : L("Задание ещё выполняется", "A job is still running"),
-                Content = _setupCancellation != null ? L("Остановить установку и выйти? Незавершённые файлы установки будут удалены. Прежняя рабочая среда сохранится.", "Stop installation and quit? Incomplete setup files will be removed. Your previous working runtime will be kept.") : L("Остановить задание и выйти? Программа дождётся безопасной остановки. Прежняя модель и завершённые контрольные точки сохранятся; незавершённая часть текущего шага может быть потеряна.",
+                Title = _updateCancellation != null ? L("Обновление ещё загружается", "Update download is in progress") : _setupCancellation != null ? L("Среда ещё устанавливается", "Runtime installation is in progress") : L("Задание ещё выполняется", "A job is still running"),
+                Content = _updateCancellation != null ? L("Отменить загрузку и выйти? Установленная программа останется прежней.", "Cancel the download and quit? Your installed application will stay unchanged.") : _setupCancellation != null ? L("Остановить установку и выйти? Незавершённые файлы установки будут удалены. Прежняя рабочая среда сохранится.", "Stop installation and quit? Incomplete setup files will be removed. Your previous working runtime will be kept.") : L("Остановить задание и выйти? Программа дождётся безопасной остановки. Прежняя модель и завершённые контрольные точки сохранятся; незавершённая часть текущего шага может быть потеряна.",
                     "Stop the job and quit? The application will wait for a safe stop. The previous model and completed checkpoints will be kept; unfinished work in the current step may be lost."),
                 PrimaryButtonText = L("Остановить и выйти", "Stop and quit"),
                 CloseButtonText = L("Продолжить работу", "Keep working"),
@@ -107,7 +108,10 @@ public sealed partial class MainWindow : Window
 
     private void FlushEvents()
     {
+        foreach (var choice in this.GetVisualDescendants().OfType<ComboBox>().Where(c => c.Name == "ComputeChoice"))
+            choice.IsEnabled = !JobActive && !_exitAfterJob;
         if (_setupCancellation != null && Volatile.Read(ref _setupProgress) is { } progress) ShowSetupProgress(progress);
+        if (_updateCancellation != null && Volatile.Read(ref _updateProgress) is { } update) { _status.Text = update; }
         var (message, lines) = _events.Drain();
         if (message is { } item) OnEvent(item);
         if (lines.Length > 0) AppendLog(string.Join('\n', lines));
@@ -158,7 +162,9 @@ public sealed partial class MainWindow : Window
             sidebar.Children.Add(item);
         }
         sidebar.Children.Add(new Border { Height = 24 });
-        sidebar.Children.Add(Text(L("0.2 · предварительная версия", "0.2 · development preview"), 11));
+        sidebar.Children.Add(Text(AppVersion.Current + L(" · предварительная версия", " · development preview"), 11));
+        sidebar.Children.Add(Button(L("Что нового", "What's new"), async () => await ShowChangesAsync()));
+        sidebar.Children.Add(Button(L("Обновить", "Update"), async () => await CheckUpdatesAsync(true)));
         shell.Children.Add(new Border { Background = new SolidColorBrush(Color.Parse(Light ? "#ebebf3" : "#211f2b")), Child = sidebar });
         var outer = new DockPanel();
         var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(32, 8, 32, 18) };
@@ -199,9 +205,10 @@ public sealed partial class MainWindow : Window
     {
         Header(p, L("Опыт игроков. Новые возможности ботов.", "Player experience. New bot capabilities."),
             L("Локальная студия обучения для OpenTDM-X", "Local learning studio for OpenTDM-X"));
+        p.Children.Add(ComputeCard());
         if (_runtimeProbe?.Ready != true) p.Children.Add(RuntimeCard());
         var banner = Stack(10);
-        var tag = Text(L("ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ  ·  0.2", "DEVELOPMENT PREVIEW  ·  0.2"), 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
+        var tag = Text(L("ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ  ·  ", "DEVELOPMENT PREVIEW  ·  ") + AppVersion.Current, 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
         banner.Children.Add(Text(L("От записей игры к проверяемому опыту", "From recordings to verifiable experience"), 20, true));
         banner.Children.Add(Text(L("Выбери BSP и демки, изучи маршруты и стиль игрока, обучи модель по истории матчей. Студия сохраняет поколения и проверяет новый опыт. Пакеты пока предназначены для офлайн-проверки; качество игры в моде ещё не подтверждено.",
             "Select a BSP and recordings, analyze routes and player style, and train on match histories. The Studio preserves generations and evaluates new learning. Packages are for offline review; mod gameplay is not yet qualified.")));
@@ -252,7 +259,7 @@ public sealed partial class MainWindow : Window
         sequence.Children.Add(Text(L("Модель и контрольные точки", "Model and checkpoints")));
         sequence.Children.Add(PathRow(S.TemporalStore, v => { S.TemporalStore = v; S.Save(); }, false));
         var modelrow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        modelrow.Children.Add(Choice(["auto", "cuda", "rocm", "xpu", "cpu"], S.Backend, v => S.Backend = v));
+        modelrow.Children.Add(ComputeChoice());
         modelrow.Children.Add(Choice(["compact", "balanced", "large", "xl"], S.Profile == "reference" ? "compact" : S.Profile, v => S.Profile = v));
         sequence.Children.Add(modelrow);
         sequence.Children.Add(Button(L("Подобрать размер пакета по памяти и скорости", "Measure batch size for memory and throughput"), () => Start("calibrate"), job: true));
@@ -295,7 +302,7 @@ public sealed partial class MainWindow : Window
         card.Children.Add(Text(L("Папка модели и истории обучения", "Model and training history folder")));
         card.Children.Add(PathRow(S.Store, value => { S.Store = value; S.Save(); }, false));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        row.Children.Add(Choice(["auto", "cuda", "rocm", "xpu", "cpu"], S.Backend, v => S.Backend = v));
+        row.Children.Add(ComputeChoice());
         row.Children.Add(Choice(["reference", "compact", "balanced", "large", "xl"], S.Profile, v => S.Profile = v));
         card.Children.Add(row);
         card.Children.Add(Text(L("Reference — проверочный эталон. Остальные модели — экспериментальные временные модели; большая модель не гарантирует лучший результат.",
@@ -321,7 +328,7 @@ public sealed partial class MainWindow : Window
         c.Children.Add(Text(L("Это целевые классы, а не измеренные требования или обещание качества. Проверка ниже реально выполняет обучение выбранной модели на синтетическом примере.",
             "These are target classes, not measured requirements or quality guarantees. The probe actually trains the selected model on a synthetic example.")));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        row.Children.Add(Choice(["auto", "cuda", "rocm", "xpu", "cpu"], S.Backend, v => S.Backend = v));
+        row.Children.Add(ComputeChoice());
         row.Children.Add(Choice(["reference", "compact", "balanced", "large", "xl"], S.Profile, v => S.Profile = v));
         row.Children.Add(Button(L("Проверить модель", "Probe model"), () => Start("probe"), true, true));
         c.Children.Add(row); p.Children.Add(Card(c));
@@ -440,6 +447,8 @@ public sealed partial class MainWindow : Window
         c.Children.Add(Text(L("Тема", "Theme")));
         c.Children.Add(Choice(["dark", "light", "system"], S.Theme, v => { S.Theme = v; App.ApplyTheme(); Dispatcher.UIThread.Post(BuildShell); }));
         p.Children.Add(Card(c));
+        p.Children.Add(UpdateCard());
+        p.Children.Add(ComputeCard());
         p.Children.Add(RuntimeCard());
         c = Stack(12);
         c.Children.Add(Text(L("Папка worker", "Worker folder")));

@@ -30,6 +30,16 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var args = Environment.GetCommandLineArgs();
+            if (args.Contains("--updates-ui-test"))
+            {
+                int at = Array.IndexOf(args, "--updates-ui-test");
+                desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
+                var test = new MainWindow(false) { ShowInTaskbar = false, ShowActivated = false,
+                    WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.Manual, Position = new PixelPoint(-20000, -20000) };
+                desktop.MainWindow = test;
+                test.Opened += async (_, _) => desktop.Shutdown(await test.TestUpdatesUi(args[at+1], args[at+2]));
+                base.OnFrameworkInitializationCompleted(); return;
+            }
             if (args.Contains("--setup-ui-test") || args.Contains("--setup-exit-test"))
             {
                 bool exitTest = args.Contains("--setup-exit-test");
