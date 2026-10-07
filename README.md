@@ -27,6 +27,10 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 - Вычисления в отдельном процессе: CPU и проверенный NVIDIA CUDA.
   В коде предусмотрены ROCm и Intel XPU, но на соответствующем оборудовании
   эта версия ещё не проверялась.
+- Библиотеки программы и модели входят в комплект. Используется подходящий
+  установленный Python; если его нет, программа предлагает установить только
+  Python. Никаких ручных pip-команд или установки CUDA Toolkit пользователю
+  не требуется. Установка работает в фоне, с проверкой и отменой.
 - Эталонная небольшая модель и четыре экспериментальных Transformer-профиля:
   Compact, Balanced, Large, XL. Это начало исследования, а не окончательные
   модели тактики и не потолок доступной видеопамяти.
@@ -95,3 +99,9 @@ and **English** with immediate switching and a saved preference.
 **[Russian user guide (DOCX)](docs/Bot_Training_Studio_User_Guide_RU.docx)**.
 Both are bundled in `docs` and accessible through **Settings → Documentation**.
 Editable guides: [English](docs/USER_GUIDE_EN.md), [Russian](docs/USER_GUIDE_RU.md).
+
+Application and model libraries are included. An existing compatible Python
+is reused; **Install Python** downloads only the interpreter if needed. No
+user-side pip commands, PyTorch setup or CUDA Toolkit installation. Downloads
+and computations are checked before activation. The application has an
+embedded Windows icon for Explorer, its window and the taskbar.

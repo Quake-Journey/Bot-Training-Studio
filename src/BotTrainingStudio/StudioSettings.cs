@@ -44,6 +44,7 @@ public sealed class StudioSettings
     public string Python { get; set; } = "";
     public string WorkerDirectory { get; set; } = "";
     public string Backend { get; set; } = "auto";
+    public string RuntimeBackend { get; set; } = "cpu";
     public string Profile { get; set; } = "reference";
     public string Dataset { get; set; } = "";
     public string Store { get; set; } = "";
@@ -73,6 +74,8 @@ public sealed class StudioSettings
         try { result = JsonSerializer.Deserialize<StudioSettings>(File.ReadAllText(Path.Combine(Home, "settings.json"))) ?? new(); }
         catch { result = new(); }
         if (result.Language is not ("system" or "ru" or "en")) result.Language = "system";
+        if (!RuntimeSetup.Backends.Contains(result.RuntimeBackend)) result.RuntimeBackend = "cpu";
+        if (RuntimeSetup.Libraries is { } libraries) result.RuntimeBackend = libraries.Backend;
         if (result.WorkerDirectory.Length == 0)
         {
             var bundled = Path.Combine(AppContext.BaseDirectory, "worker");
@@ -81,7 +84,7 @@ public sealed class StudioSettings
         if (result.Python.Length == 0)
         {
             var bundled = Path.Combine(AppContext.BaseDirectory, "runtime", "python.exe");
-            if (File.Exists(bundled)) result.Python = bundled;
+            result.Python = RuntimeSetup.FindManaged(Home, result.RuntimeBackend) ?? (File.Exists(bundled) ? bundled : "");
         }
         if (result.Store.Length == 0) result.Store = Path.Combine(Home, "models", "motion");
         if (result.TemporalStore.Length == 0) result.TemporalStore = Path.Combine(Home, "models", "sequences");

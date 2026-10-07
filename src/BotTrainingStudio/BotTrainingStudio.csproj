@@ -10,8 +10,11 @@
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>embedded</DebugType>
+    <ApplicationIcon>../../assets/studio.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../assets/studio.ico" LogicalName="BotTrainingStudio.studio.ico" />
+    <EmbeddedResource Include="../../packaging/runtime-*-win-x64.lock.json" LogicalName="BotTrainingStudio.%(Filename)%(Extension)" />
     <PackageReference Include="Avalonia" Version="12.1.3" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.3" />

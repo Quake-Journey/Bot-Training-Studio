@@ -91,12 +91,14 @@ public sealed class JobRunner
                 WorkingDirectory = worker
             };
             info.ArgumentList.Add("-I");
+            if (RuntimeSetup.Libraries != null) info.ArgumentList.Add("-S");
             info.ArgumentList.Add("-X");
             info.ArgumentList.Add("utf8");
             info.ArgumentList.Add("-u");
             info.ArgumentList.Add("-c");
-            info.ArgumentList.Add("import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('opentdm_x_trainer.studio',run_name='__main__')");
+            info.ArgumentList.Add("import runpy,sys; worker=sys.argv.pop(1); library=sys.argv.pop(1); sys.path.insert(0,library) if library else None; sys.path.insert(0,worker); runpy.run_module('opentdm_x_trainer.studio',run_name='__main__')");
             info.ArgumentList.Add(Path.GetFullPath(worker));
+            info.ArgumentList.Add(RuntimeSetup.Libraries?.Directory ?? "");
             info.ArgumentList.Add("--request");
             info.ArgumentList.Add(path);
             using var stderr = new StreamWriter(Path.Combine(_folder, "stderr.txt"));

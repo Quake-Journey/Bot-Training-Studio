@@ -30,11 +30,23 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var args = Environment.GetCommandLineArgs();
+            if (args.Contains("--setup-ui-test") || args.Contains("--setup-exit-test"))
+            {
+                bool exitTest = args.Contains("--setup-exit-test");
+                int at = Array.IndexOf(args, exitTest ? "--setup-exit-test" : "--setup-ui-test");
+                desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
+                var test = new MainWindow(false) { ShowInTaskbar = false, ShowActivated = false,
+                    WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.Manual, Position = new PixelPoint(-20000, -20000) };
+                desktop.MainWindow = test;
+                test.Opened += async (_, _) => desktop.Shutdown(exitTest ? await test.TestSetupExit(args[at + 1]) : await test.TestSetup(args[at + 1], args.Length > at + 2 ? args[at + 2] : "cpu"));
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (args.Contains("--lifecycle-test"))
             {
                 int at = Array.IndexOf(args, "--lifecycle-test");
                 desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
-                var test = new MainWindow { ShowInTaskbar = false, ShowActivated = false,
+                var test = new MainWindow(false) { ShowInTaskbar = false, ShowActivated = false,
                     WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.Manual,
                     Position = new PixelPoint(-20000, -20000) };
                 desktop.MainWindow = test;

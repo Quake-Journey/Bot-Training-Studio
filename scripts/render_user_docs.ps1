@@ -15,11 +15,14 @@ try {
     foreach ($language in @('RU','EN')) {
         $source = Join-Path $repoRoot "docs\Bot_Training_Studio_User_Guide_$language.docx"
         $before = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+        Write-Output "Opening $language guide read-only"
         $document = $word.Documents.Open($source, $false, $true, $false)
         if (!$document.ReadOnly) { throw 'Document did not open read-only' }
+        Write-Output "Paginating $language guide"
         $document.Repaginate()
         $pages = $document.ComputeStatistics(2)
         $pdf = Join-Path $Output "$language.pdf"
+        Write-Output "Exporting $language guide"
         $document.ExportAsFixedFormat($pdf, 17)
         $document.Close(0)
         [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($document)

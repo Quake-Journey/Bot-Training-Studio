@@ -32,6 +32,10 @@ include both in packages and publish both on GitHub. Never add linked assets or
 automatic external-field updates to a guide.
 Use ProcessStartInfo.ArgumentList; workers receive structured JSON, never shell
 command fragments. Preserve previous model generation on failure/cancel.
+End-user packages must include application/model libraries (including required
+GPU runtime DLLs); never require users to install PyTorch or full CUDA Toolkit.
+Reuse a compatible installed Python; if absent, offer automatic installation
+of Python alone. Do not download model libraries during that bootstrap.
 Keep model computation, process/stream management and protocol parsing off the
 UI thread. Bound/coalesce progress updates so worker output cannot flood the
 dispatcher. Closing during a job must ask first, default to keeping work, and

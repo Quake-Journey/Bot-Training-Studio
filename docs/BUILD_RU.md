@@ -2,7 +2,8 @@
 
 Проверены Windows x64, .NET SDK 10.0.111, MinGW GCC 14.1, Python 3.12/3.13,
 PyTorch 2.10.0 CPU/CUDA 12.8 и RTX 5090. Это инструкция сборщика. Пользователь
-пакета со встроенной средой не должен устанавливать компилятор или Python.
+не устанавливает компилятор, библиотеки или CUDA Toolkit. Подходящий Python
+используется установленный; если его нет, студия предлагает установить Python.
 
 ## Исходники и инструменты
 
@@ -11,20 +12,24 @@ PyTorch 2.10.0 CPU/CUDA 12.8 и RTX 5090. Это инструкция сборщ
 ```powershell
 python -m pip install -r worker/requirements.txt
 python scripts/build_native.py --cc gcc
+python scripts/bundle_runtime.py --out dist/runtime-cuda-win-x64 --backend cuda
+python scripts/bundle_libraries.py --runtime dist/runtime-cuda-win-x64 --out dist/portable-preview-win-x64/libraries
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_preview.ps1
 ```
 
 PyTorch нужного варианта устанавливается отдельно в среду разработчика;
 см. [официальные варианты 2.10.0](https://pytorch.org/get-started/previous-versions/#v2-10-0).
 Native-сборка использует только `native/engine`, а не соседний checkout.
-Выход: `dist/preview-win-x64/BotTrainingStudio.exe` и worker с декодером/физикой.
+Выход: `dist/portable-preview-win-x64/BotTrainingStudio.exe`, комплект libraries,
+worker с декодером/физикой и документация. Пользовательский пакет не содержит
+Python: программа находит установленный или предлагает его поставить.
 
-## Встроенная среда
+## Среда сборщика и комплект библиотек
 
 Для нового, ещё не существующего каталога runtime:
 
 ```powershell
-python scripts/bundle_runtime.py --out dist/preview-win-x64/runtime --backend cpu
+python scripts/bundle_runtime.py --out dist/runtime-cpu-win-x64 --backend cpu
 ```
 
 Вариант NVIDIA: `--backend cuda`; CUDA-сборка также умеет CPU. Для сравнения
@@ -34,22 +39,30 @@ runtime. Сборщик скачивает официальный embedded CPyth
 библиотеки устанавливаются только внутрь выбранного каталога, системный
 Python/registry/PATH не меняются. Все `.dist-info` и лицензии сохраняются.
 
-Приложение при чистых настройках автоматически находит `runtime/python.exe`
-и `worker` рядом с собой. Если ранее была выбрана другая среда, её выбор
-сохраняется. Встроенная среда изолирована от пользовательского PYTHONPATH;
-путь `../worker` задаётся в её `_pth`. RAR-декомпрессор пока отдельно: без
-UnRAR доступны DM2/MVD2 и ZIP. Не объявляй эту ограниченную предварительную
-сборку окончательным установщиком всех GPU-вендоров.
+`bundle_libraries.py` берёт только библиотеки проверенной среды сборщика и
+кладёт их в пользовательский пакет, сохраняя лицензии; Python не копируется.
+Программа ищет подходящий Python в выбранном пути, PATH, реестре и среди своих
+прежних установок. Пакетные библиотеки передаются worker отдельно, системный
+site-packages не используется. RAR-декомпрессор пока отдельно: без UnRAR
+доступны DM2/MVD2 и ZIP. AMD/Intel GPU отдельно не проверены.
 
 Настройки/проекты по умолчанию: `%LOCALAPPDATA%/QuakeJourney/BotTrainingStudio`.
 Для изолированных проверок используется `BTS_HOME`.
 
+«Настройки → Python для запуска» скачивает только Python, если он отсутствует.
+Библиотеки не скачиваются: они обязательны в полном пользовательском пакете.
+Сборка без libraries отклоняется; `-DevelopmentOnly` разрешает неполный
+выход только для разработчика. Детали проверок — в `RUNTIME_SETUP.md`.
+
+Иконка EXE и окна хранится в `assets/studio.ico`, исходник — `studio.svg`.
+`scripts/build_icon.py` воспроизводит SVG/PNG/ICO с Pillow 12.2.0.
+
 ## Проверки
 
-Со встроенной CPU-средой из корня репозитория:
+Со средой сборщика CPU из корня репозитория:
 
 ```powershell
-dist/preview-win-x64/runtime/python.exe -I -m unittest opentdm_x_trainer.test_contracts opentdm_x_trainer.test_studio opentdm_x_trainer.test_pipeline opentdm_x_trainer.test_outcomes opentdm_x_trainer.test_decisions opentdm_x_trainer.test_native_stream -v
+dist/runtime-cpu-win-x64/python.exe -I -c "import sys,unittest; sys.path.insert(0,'worker'); unittest.main(module=None,argv=['tests','opentdm_x_trainer.test_contracts','opentdm_x_trainer.test_studio'])"
 ```
 
 Для среды разработчика задай `PYTHONPATH=worker` и запускай те же модули.
@@ -95,7 +108,7 @@ DOCX и `docs/user-guides.json` отслеживаются в Git. Провер�
 На машине с Microsoft Word:
 
 ```powershell
-powershell -NoProfile -File scripts/render_user_docs.ps1 -Output artifacts/guide-render
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/render_user_docs.ps1 -Output artifacts/guide-render
 ```
 
 Скрипт открывает DOCX только для чтения в собственной скрытой сессии Word,

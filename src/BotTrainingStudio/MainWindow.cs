@@ -35,23 +35,25 @@ public sealed partial class MainWindow : Window
     private bool _jobUiActive;
     private FAContentDialog? _exitDialog;
     private readonly Button _stay = new() { IsVisible = false };
-    private bool JobActive => _runner.IsRunning || _jobUiActive;
+    private bool JobActive => _runner.IsRunning || _jobUiActive || _setupCancellation != null;
     private StudioSettings S => App.Settings;
     private string L(string ru, string en) => S.EffectiveLanguage == "ru" ? ru : en;
     private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#8b83ff"));
     private bool Light => ActualThemeVariant == ThemeVariant.Light;
 
-    public MainWindow()
+    public MainWindow(bool checkRuntime = true)
     {
         Title = "Bot Training Studio by ly";
+        using (var icon = RuntimeSetup.Resource("studio.ico")) Icon = new WindowIcon(icon);
+        _checkRuntime = checkRuntime;
         _resources = new ResourceSampler(() => _runner.WorkerPid);
         _resourceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _resourceTimer.Tick += (_, _) => _meter?.Show(_resources.Latest);
         _eventTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _eventTimer.Tick += (_, _) => FlushEvents();
         _stay.Click += (_, _) => { _exitAfterJob = false; _stay.IsVisible = false; };
-        Opened += (_, _) => { _resourceTimer.Start(); _eventTimer.Start(); };
-        Closed += (_, _) => { _resourceTimer.Stop(); _eventTimer.Stop(); _resources.Dispose(); };
+        Opened += async (_, _) => { _resourceTimer.Start(); _eventTimer.Start(); if (_checkRuntime) await RefreshRuntimeAsync(); };
+        Closed += (_, _) => { _lifetime.Cancel(); _resourceTimer.Stop(); _eventTimer.Stop(); _resources.Dispose(); };
         Width = 1180; Height = 820; MinWidth = 980; MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         _runner.Received += _events.Receive;
@@ -70,8 +72,8 @@ public sealed partial class MainWindow : Window
         {
             _exitDialog = new FAContentDialog
             {
-                Title = L("Задание ещё выполняется", "A job is still running"),
-                Content = L("Остановить задание и выйти? Программа дождётся безопасной остановки. Прежняя модель и завершённые контрольные точки сохранятся; незавершённая часть текущего шага может быть потеряна.",
+                Title = _setupCancellation != null ? L("Среда ещё устанавливается", "Runtime installation is in progress") : L("Задание ещё выполняется", "A job is still running"),
+                Content = _setupCancellation != null ? L("Остановить установку и выйти? Незавершённые файлы установки будут удалены. Прежняя рабочая среда сохранится.", "Stop installation and quit? Incomplete setup files will be removed. Your previous working runtime will be kept.") : L("Остановить задание и выйти? Программа дождётся безопасной остановки. Прежняя модель и завершённые контрольные точки сохранятся; незавершённая часть текущего шага может быть потеряна.",
                     "Stop the job and quit? The application will wait for a safe stop. The previous model and completed checkpoints will be kept; unfinished work in the current step may be lost."),
                 PrimaryButtonText = L("Остановить и выйти", "Stop and quit"),
                 CloseButtonText = L("Продолжить работу", "Keep working"),
@@ -82,7 +84,7 @@ public sealed partial class MainWindow : Window
             _stay.IsVisible = true;
             _status.Text = L("Останавливаем задание… Окно закроется после остановки. Интерфейс доступен.",
                 "Stopping the job… The window will close once it stops. You can still use the interface.");
-            bool requested = await _runner.CancelAsync();
+            bool requested = await RequestStopAsync();
             if (!requested && _runner.IsRunning)
             {
                 _exitAfterJob = false; _stay.IsVisible = false;
@@ -105,6 +107,7 @@ public sealed partial class MainWindow : Window
 
     private void FlushEvents()
     {
+        if (_setupCancellation != null && Volatile.Read(ref _setupProgress) is { } progress) ShowSetupProgress(progress);
         var (message, lines) = _events.Drain();
         if (message is { } item) OnEvent(item);
         if (lines.Length > 0) AppendLog(string.Join('\n', lines));
@@ -196,6 +199,7 @@ public sealed partial class MainWindow : Window
     {
         Header(p, L("Опыт игроков. Новые возможности ботов.", "Player experience. New bot capabilities."),
             L("Локальная студия обучения для OpenTDM-X", "Local learning studio for OpenTDM-X"));
+        if (_runtimeProbe?.Ready != true) p.Children.Add(RuntimeCard());
         var banner = Stack(10);
         var tag = Text(L("ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ  ·  0.2", "DEVELOPMENT PREVIEW  ·  0.2"), 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
         banner.Children.Add(Text(L("От записей игры к проверяемому опыту", "From recordings to verifiable experience"), 20, true));
@@ -203,7 +207,7 @@ public sealed partial class MainWindow : Window
             "Select a BSP and recordings, analyze routes and player style, and train on match histories. The Studio preserves generations and evaluates new learning. Packages are for offline review; mod gameplay is not yet qualified.")));
         banner.Children.Add(Button(L("Открыть обучение", "Open training"), () => Navigate("train"), true)); p.Children.Add(Card(banner));
         var ready = Stack(10); ready.Children.Add(Text(L("Готовность к работе", "Readiness"), 19, true));
-        ready.Children.Add(Text((File.Exists(S.Python) ? "✓  " : "○  ") + L("Среда обучения", "Training runtime")));
+        ready.Children.Add(Text(RuntimeStatus()));
         ready.Children.Add(Text((File.Exists(Path.Combine(S.WorkerDirectory, "opentdm_x_trainer", "studio.py")) ? "✓  " : "○  ") + L("Модуль анализа и обучения", "Analysis and learning worker")));
         ready.Children.Add(Text(_hardware.Length > 0 ? _hardware : L("Оборудование ещё не проверено", "Hardware has not been checked yet")));
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
@@ -299,7 +303,7 @@ public sealed partial class MainWindow : Window
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         commands.Children.Add(Button(L("Обучить новую", "Train new"), () => Start("train", "fresh"), true, true));
         commands.Children.Add(Button(L("Дообучить", "Continue learning"), () => Start("train", "update"), job: true));
-        commands.Children.Add(Button(L("Отменить задание", "Cancel job"), () => _runner.Cancel()));
+        commands.Children.Add(Button(L("Отменить задание", "Cancel job"), async () => await RequestStopAsync()));
         card.Children.Add(commands); p.Children.Add(Card(card));
         p.Children.Add(Text(L("Прежнее поколение сохраняется. Результат этого этапа ещё нельзя устанавливать в игровой мод.", "Previous generations are preserved. This stage does not produce installable game knowledge.")));
     }
@@ -385,7 +389,7 @@ public sealed partial class MainWindow : Window
     private void Jobs(StackPanel p)
     {
         Header(p, L("Задания и результаты", "Jobs and results"), L("Ход работы, причины отказа и результаты проверок.", "Progress, rejection reasons and evaluation results."));
-        p.Children.Add(Button(L("Отменить текущее задание", "Cancel current job"), () => _runner.Cancel()));
+        p.Children.Add(Button(L("Отменить текущее задание", "Cancel current job"), async () => await RequestStopAsync()));
         if (_log.Parent is Panel previous) previous.Children.Remove(_log);
         p.Children.Add(_log);
         if (_result.Length > 0) p.Children.Add(Card(Text(_result)));
@@ -435,8 +439,9 @@ public sealed partial class MainWindow : Window
             "Default: Russian for a Russian system, English otherwise. Your selection is saved."), 13));
         c.Children.Add(Text(L("Тема", "Theme")));
         c.Children.Add(Choice(["dark", "light", "system"], S.Theme, v => { S.Theme = v; App.ApplyTheme(); Dispatcher.UIThread.Post(BuildShell); }));
-        c.Children.Add(Text(L("Python среды обучения", "Training environment Python")));
-        c.Children.Add(PathRow(S.Python, v => { S.Python = v; S.Save(); }, true));
+        p.Children.Add(Card(c));
+        p.Children.Add(RuntimeCard());
+        c = Stack(12);
         c.Children.Add(Text(L("Папка worker", "Worker folder")));
         c.Children.Add(PathRow(S.WorkerDirectory, v => { S.WorkerDirectory = v; S.Save(); }, false));
         c.Children.Add(Text(L("В комплектной сборке среда определяется автоматически. Эти пути нужны для выбора другой установленной среды обучения.",
@@ -468,6 +473,11 @@ public sealed partial class MainWindow : Window
         foreach (var b in _jobButtons) b.IsEnabled = false;
         try
         {
+            if (_checkRuntime && (_runtimeProbe?.Ready != true || _runtimeProbePath != S.Python))
+            {
+                await RefreshRuntimeAsync();
+                if (_runtimeProbe?.Ready != true) { Navigate("settings"); _status.Text = L("Подготовь среду обучения кнопкой установки или выбери готовую среду.", "Install the training runtime or select a ready environment."); return; }
+            }
             var request = new Dictionary<string, object?> { ["action"] = action, ["backend"] = S.Backend,
                 ["profile"] = S.Profile, ["dataset"] = S.Dataset, ["store"] = S.Store, ["mode"] = mode, ["epochs"] = 20,
                 ["bsp"] = S.Bsp, ["inputs"] = S.Inputs, ["project"] = S.Project, ["projects"] = S.Projects,
@@ -607,7 +617,7 @@ public sealed partial class MainWindow : Window
         {
             App.Settings.Language = language; App.Settings.Theme = theme; App.ApplyLanguage(); App.ApplyTheme();
             App.Settings.Save();
-            var window = new MainWindow { ShowInTaskbar = false, ShowActivated = false,
+            var window = new MainWindow(false) { ShowInTaskbar = false, ShowActivated = false,
                 WindowStartupLocation = WindowStartupLocation.Manual, Position = new PixelPoint(-20000, -20000) };
             window.Show();
             // The sampler runs independently; obtain real readings before capturing the panel.

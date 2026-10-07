@@ -28,7 +28,7 @@ The future game module will read validated data rather than run a neural network
 
 ## 2. Installation and interface settings
 
-The current desktop build targets Windows x64. Keep the entire application folder, not just the EXE: **runtime**, **worker** and **docs** sit beside it. A bundled Python environment is detected automatically. RAR additionally requires installed WinRAR/UnRAR; DM2, MVD2 and ZIP do not.
+The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**. Application and model libraries are included. Installed Python 3.13 x64 is reused; if missing, the Studio offers installation (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
 
 CPU and NVIDIA CUDA have been tested. ROCm and Intel XPU code paths exist, but support for specific AMD/Intel GPUs has not yet been hardware-qualified. GPU profiles do not have a universal 4 GB VRAM limit. A larger profile requires more resources and does not by itself guarantee better quality.
 
@@ -54,7 +54,7 @@ Theme is selected on the same page: **dark**, **light** or **system**. Technical
 | Models & GPU | Device discovery, profiles and computation checks. |
 | Library | Creation and verification of offline packages. |
 | Jobs | Progress, logs, cancellation and results. |
-| Settings | Language, theme and training-runtime paths. |
+| Settings | Language, theme, Python installation and runtime selection. |
 
 <!-- page -->
 
@@ -187,3 +187,26 @@ The Russian and English guides ship in the application's **docs** folder: **Bot_
 Repository: https://github.com/Quake-Journey/Bot-Training-Studio
 
 The project is distributed under GPL-2.0-or-later. Dependency licenses remain in the package. File names, technical commands and format keys are the same in both languages.
+
+<!-- page -->
+
+## 8. Automatic Python installation
+
+Home and Settings contain **Python interpreter**. Application and model libraries ship in **libraries**. The Studio checks installed Python, loads the bundled libraries and runs a small computation. An unsuitable Python installation is not modified or upgraded without your involvement.
+
+1. If suitable Python is found, you can work immediately. **Select installed Python…** allows manual selection; libraries come from the Studio package, not from the system environment.
+2. If Python is missing, click **Install Python**. Only the official interpreter is downloaded from python.org and verified by SHA256. No pip or separate GPU-library downloads are required.
+3. Watch progress at the bottom of the window. You can navigate between pages. Training is unavailable while setup runs.
+4. After extraction, the application checks bundled libraries and computation. Only a successful installation becomes active, and the selection is saved. You can then check hardware and train a model.
+
+Installing Python alone needs about **100 MiB of free space including headroom** and internet access. Libraries are already in the extracted package; they are not downloaded or copied again. NVIDIA acceleration needs a compatible driver, not the full CUDA Toolkit. CPU works without a GPU. AMD/Intel GPU paths are not separately qualified yet.
+
+### Finding Python
+
+The Studio checks the selected Python, then searches PATH and Windows Python registrations. It also considers Python previously installed by the Studio. Version 3.13 x64 is required by this package's binary libraries. If **libraries** is missing, extract the complete application package: installing Python does not replace those files.
+
+### Cancellation and retry
+
+**Cancel installation** stops downloading or extraction and removes incomplete files from the attempt. Closing the window first asks whether to keep working. The previous Python is preserved. Retry after a network error; incomplete downloads start over. A healthy installed Python is reused without downloading again.
+
+Automatically installed Python lives in **runtimes** under the Studio data directory (section 6). Administrator access is not needed; setup does not change PATH or other Python installations. Do not delete the selected Python while the application is running.
