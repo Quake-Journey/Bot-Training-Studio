@@ -1,0 +1,37 @@
+# Standalone completion work
+
+Owner: Bot Training Studio. No edits to OpenTDM-X game module or Claude's q3t2 lane.
+
+Requested scope: all application/model work independent of changing game DLL.
+Completion requires evidence for every applicable item; a prototype or pipeline
+success does not close tactical learning or gameplay validation.
+
+- [x] Standalone native demo decoder and physics tools, source provenance/build.
+- [x] Project/library lifecycle: BSP + game/trick recordings, fresh/update/cancel.
+- [ ] Native DM2/MVD2 import and bounded ZIP/RAR intake, resumable provenance.
+- [ ] Map geometry/items/visibility and observed route/trick extraction.
+- [ ] Sequence datasets, grouped holdouts, unknown-state masks and quality gates.
+- [ ] Multi-task movement/weapon/tactic models with replay and donor learning.
+- [ ] Resource calibration, mixed precision, OOM recovery, CPU fallback.
+- [x] Durable completed-epoch checkpoint/resume/cancellation and checkpoint rotation.
+- [ ] Donor identity review, style statistics, correctly attributed phrases.
+- [ ] Offline movement/route/shot qualification, uncertainty and failure reports.
+- [x] Portable candidate DATA package compiler/validator and offline rollback library.
+- [ ] Complete UI workflows and managed runtime installation/bundling.
+- [ ] Real demo/map regression tests, clean-machine/package checks and docs.
+
+Game DLL loading/execution remains excluded. Actual online match quality with a
+new compiled knowledge package requires the future coordinated runtime change.
+
+0.2 evidence: docs/VALIDATION_0.2_RU.md. Unchecked items above have partial
+implementations and must not be described as completed capabilities. In
+particular, auxiliary tactical heads failed their baseline comparisons; the
+compiler excludes them even when movement predictions passed. CPU/CUDA local
+runtime builds exist; this is not AMD/Intel or clean-machine certification.
+
+PO corrected experiment order: learn/validate ONLY q2duel5 and ztn2dm3 now.
+Wait for Claude to finish q3t2, then add q3t2 and its teleport experience;
+only afterwards evaluate/adapt q2duel1 with retention checks. Both q3t2 and
+q2duel1 are excluded from current training; do not bypass this sequencing.
+q2duel1 source archives: demos.q2players.org.zip and EDL.zip (user-local corpus;
+never upload the recordings with public source).

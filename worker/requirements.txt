@@ -4,3 +4,4 @@ pyarrow==23.0.1
 safetensors==0.7.0
 scikit-learn==1.7.2
 packaging==25.0
+rarfile==4.2

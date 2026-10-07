@@ -53,6 +53,7 @@ def create(profile, input_features, outputs=3):
                         dropout=0., batch_first=True, activation="gelu")
             self.encoder = nn.TransformerEncoder(layer, p.layers, enable_nested_tensor=False)
             self.output = nn.Sequential(nn.LayerNorm(p.width), nn.Linear(p.width, outputs))
+            self.activation_checkpointing = False
 
         def forward(self, x):
             # Single-frame datasets are allowed for pipeline checks, but the UI
@@ -64,6 +65,14 @@ def create(profile, input_features, outputs=3):
             y = self.input(x) + self.position[:, :x.size(1)]
             # All tokens precede the predicted future: bidirectional attention
             # over the observed past is permitted; no future label enters here.
-            return self.output(self.encoder(y)[:, -1])
+            if self.training and self.activation_checkpointing:
+                from torch.utils.checkpoint import checkpoint
+                for layer in self.encoder.layers:
+                    y = checkpoint(layer, y, use_reentrant=False)
+                if self.encoder.norm is not None:
+                    y = self.encoder.norm(y)
+            else:
+                y = self.encoder(y)
+            return self.output(y[:, -1])
 
     return TemporalTeacher()

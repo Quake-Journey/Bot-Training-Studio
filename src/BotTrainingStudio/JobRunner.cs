@@ -40,13 +40,15 @@ public sealed class JobRunner
                 StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
                 WorkingDirectory = settings.WorkerDirectory
             };
+            info.ArgumentList.Add("-I");
+            info.ArgumentList.Add("-X");
+            info.ArgumentList.Add("utf8");
             info.ArgumentList.Add("-u");
-            info.ArgumentList.Add("-m");
-            info.ArgumentList.Add("opentdm_x_trainer.studio");
+            info.ArgumentList.Add("-c");
+            info.ArgumentList.Add("import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('opentdm_x_trainer.studio',run_name='__main__')");
+            info.ArgumentList.Add(Path.GetFullPath(settings.WorkerDirectory));
             info.ArgumentList.Add("--request");
             info.ArgumentList.Add(path);
-            info.Environment["PYTHONUTF8"] = "1";
-            info.Environment["PYTHONPATH"] = settings.WorkerDirectory;
             using var process = Process.Start(info) ?? throw new InvalidOperationException("Cannot start worker");
             using var stderr = new StreamWriter(Path.Combine(_folder, "stderr.txt"));
             var errorTask = Task.Run(async () =>

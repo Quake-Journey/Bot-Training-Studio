@@ -79,7 +79,7 @@ public sealed class MainWindow : Window
         var sidebar = new StackPanel { Spacing = 8, Margin = new Thickness(16, 26) };
         sidebar.Children.Add(Text("BOT TRAINING\nSTUDIO", 18, true));
         sidebar.Children.Add(new Border { Height = 12 });
-        var pages = new[] { ("home", L("Главная", "Home")), ("train", L("Обучение", "Training")),
+        var pages = new[] { ("home", L("Главная", "Home")), ("project", L("Карта и демки", "Map & demos")), ("train", L("Обучение", "Training")),
             ("models", L("Модели и GPU", "Models & GPU")), ("library", L("Библиотека", "Library")),
             ("jobs", L("Задания", "Jobs")), ("settings", L("Настройки", "Settings")) };
         foreach (var (id, label) in pages)
@@ -92,7 +92,7 @@ public sealed class MainWindow : Window
             sidebar.Children.Add(item);
         }
         sidebar.Children.Add(new Border { Height = 24 });
-        sidebar.Children.Add(Text("0.1 · development preview", 11));
+        sidebar.Children.Add(Text("0.2 · development preview", 11));
         shell.Children.Add(new Border { Background = new SolidColorBrush(Color.Parse(Light ? "#ebebf3" : "#211f2b")), Child = sidebar });
         var outer = new DockPanel();
         var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(32, 8, 32, 18) };
@@ -110,6 +110,7 @@ public sealed class MainWindow : Window
         switch (_page)
         {
             case "train": Training(panel); break;
+            case "project": Project(panel); break;
             case "models": Models(panel); break;
             case "library": Library(panel); break;
             case "jobs": Jobs(panel); break;
@@ -127,10 +128,10 @@ public sealed class MainWindow : Window
         Header(p, L("Опыт игроков. Новые возможности ботов.", "Player experience. New bot capabilities."),
             L("Локальная студия обучения для OpenTDM-X", "Local learning studio for OpenTDM-X"));
         var banner = Stack(10);
-        var tag = Text("DEVELOPMENT PREVIEW  ·  0.1", 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
-        banner.Children.Add(Text(L("Первый рабочий этап — обучение движения", "First working stage — motion learning"), 20, true));
-        banner.Children.Add(Text(L("Можно проверить оборудование, обучить модель на подготовленных наблюдениях и сравнить результат. Автономное обучение карты по демкам и установка знаний в мод ещё разрабатываются.",
-            "Probe hardware, train on prepared observations and compare results. Autonomous map learning from demos and game package installation are still in development.")));
+        var tag = Text("DEVELOPMENT PREVIEW  ·  0.2", 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
+        banner.Children.Add(Text(L("От записей игры к проверяемому опыту", "From recordings to verifiable experience"), 20, true));
+        banner.Children.Add(Text(L("Выбери BSP и демки, изучи маршруты и стиль игрока, обучи модель по истории матчей. Студия сохраняет поколения и проверяет новый опыт. Пакеты пока предназначены для офлайн-проверки; качество игры в моде ещё не подтверждено.",
+            "Select a BSP and recordings, analyze routes and player style, and train on match histories. The Studio preserves generations and evaluates new learning. Packages are for offline review; mod gameplay is not yet qualified.")));
         banner.Children.Add(Button(L("Открыть обучение", "Open training"), () => Navigate("train"), true)); p.Children.Add(Card(banner));
         var ready = Stack(10); ready.Children.Add(Text(L("Готовность к работе", "Readiness"), 19, true));
         ready.Children.Add(Text((File.Exists(S.Python) ? "✓  " : "○  ") + L("Среда обучения", "Training runtime")));
@@ -149,6 +150,37 @@ public sealed class MainWindow : Window
         return box;
     }
     private void Training(StackPanel p)
+    {
+        Header(p, L("Обучение по истории игры", "Learn from gameplay history"),
+            L("Движение, оружие и ресурсные цели. Проверка на отдельных матчах.", "Movement, weapons and resource destinations. Independent match validation."));
+        var sequence = Stack(12);
+        sequence.Children.Add(Text(L("Проекты карт — по одному пути в строке", "Map projects — one folder per line")));
+        var projects = new TextBox { AcceptsReturn = true, MinHeight = 70, Text = string.Join("\n", S.Projects) };
+        projects.TextChanged += (_, _) => { S.Projects = (projects.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); };
+        sequence.Children.Add(projects);
+        sequence.Children.Add(Button(L("Добавить текущую карту", "Add current map"), () => { S.Projects = S.Projects.Append(S.Project).Distinct().ToArray(); S.Save(); ShowPage(); }));
+        sequence.Children.Add(Text(L("История наблюдений (кадров)", "Observed history (frames)")));
+        sequence.Children.Add(Choice(["4", "8", "16", "32", "64", "128"], S.Context.ToString(), v => S.Context = int.Parse(v)));
+        sequence.Children.Add(Button(L("Подготовить данные проектов", "Prepare project data"), () => Start("prepare_sequences"), true, true));
+        sequence.Children.Add(Text(L("Подготовленный набор", "Prepared dataset")));
+        sequence.Children.Add(PathRow(S.SequenceDataset, v => { S.SequenceDataset = v; S.Save(); }, false));
+        sequence.Children.Add(Text(L("Модель и контрольные точки", "Model and checkpoints")));
+        sequence.Children.Add(PathRow(S.TemporalStore, v => { S.TemporalStore = v; S.Save(); }, false));
+        var modelrow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        modelrow.Children.Add(Choice(["auto", "cuda", "rocm", "xpu", "cpu"], S.Backend, v => S.Backend = v));
+        modelrow.Children.Add(Choice(["compact", "balanced", "large", "xl"], S.Profile == "reference" ? "compact" : S.Profile, v => S.Profile = v));
+        sequence.Children.Add(modelrow);
+        sequence.Children.Add(Button(L("Подобрать размер пакета по памяти и скорости", "Measure batch size for memory and throughput"), () => Start("calibrate"), job: true));
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        actions.Children.Add(Button(L("Обучить новое поколение", "Train new generation"), () => Start("train_sequences", "fresh"), true, true));
+        actions.Children.Add(Button(L("Дообучить", "Update"), () => Start("train_sequences", "update"), job: true));
+        actions.Children.Add(Button(L("Возобновить", "Resume"), () => Start("train_sequences", "resume"), job: true));
+        sequence.Children.Add(actions);
+        sequence.Children.Add(Text(L("Отмена сохраняет завершённую эпоху. Новое поколение не стирает предыдущее. Подготовка требует независимых матчей для обучения и проверки.",
+            "Cancellation preserves the completed epoch. New generations preserve previous ones. Preparation requires independent training and evaluation matches.")));
+        p.Children.Add(Card(sequence));
+    }
+    private void LegacyTraining(StackPanel p)
     {
         Header(p, L("Обучение модели", "Train a model"), L("Новый опыт проверяется отдельно от данных, на которых модель училась.", "New learning is evaluated on data held out from training."));
         var card = Stack(12);
@@ -192,10 +224,62 @@ public sealed class MainWindow : Window
     private void Library(StackPanel p)
     {
         Header(p, L("Библиотека обучения", "Learning library"), L("Модель, история и проверенные результаты хранятся отдельно от игровых файлов.", "Models, history and verification results are separate from game files."));
-        var c = Stack(12); c.Children.Add(Text(L("Текущая модель", "Current model"), 19, true)); c.Children.Add(Text(S.Store));
-        c.Children.Add(Button(L("Проверить и открыть результат", "Verify and view result"), () => Start("status"), true, true));
-        c.Children.Add(Text(L("Библиотека обученных карт и профилей игроков появится вместе с проверенным форматом данных для мода.", "The map and player-profile library will become available with the validated game-data format.")));
+        var c = Stack(12); c.Children.Add(Text(L("Текущая модель", "Current model"), 19, true)); c.Children.Add(Text(S.TemporalStore));
+        c.Children.Add(Button(L("Проверить и открыть результат", "Verify and view result"), () => Start("sequence_status"), true, true));
+        c.Children.Add(Text(L("Экспериментальные поколения моделей и пакеты карты сохраняются отдельно от файлов мода.", "Experimental model generations and map packages are separate from mod files.")));
         p.Children.Add(Card(c));
+        var pack = Stack(12);
+        pack.Children.Add(Text(L("Пакет данных карты", "Map data package"), 19, true));
+        pack.Children.Add(Text(L("Результат анализа", "Analysis result")));
+        pack.Children.Add(PathRow(S.Knowledge, v => { S.Knowledge = v; S.Save(); }, true));
+        var includeModel = new CheckBox { Content = L("Добавить обученную модель (карта и донор должны совпадать)", "Include the learned model (map and donor must match)"), IsChecked = S.IncludeModel };
+        includeModel.IsCheckedChanged += (_, _) => { S.IncludeModel = includeModel.IsChecked == true; S.Save(); };
+        pack.Children.Add(includeModel);
+        var includeChat = new CheckBox { Content = L("Включить фразы игрока в пакет", "Include player phrases in the package"), IsChecked = S.IncludeChat };
+        includeChat.IsCheckedChanged += (_, _) => { S.IncludeChat = includeChat.IsChecked == true; S.Save(); };
+        pack.Children.Add(includeChat);
+        pack.Children.Add(Button(L("Собрать пакет карты", "Compile map package"), () => Start("compile_package"), true, true));
+        pack.Children.Add(PathRow(S.Package, v => { S.Package = v; S.Save(); }, true));
+        pack.Children.Add(Button(L("Проверить пакет", "Verify package"), () => Start("verify_package"), job: true));
+        pack.Children.Add(Button(L("Добавить в библиотеку студии", "Add to Studio library"), () => Start("install_offline"), job: true));
+        pack.Children.Add(Text(L("Пока это офлайн-пакет для проверки. Установка на сервер станет доступна после согласования загрузчика мода.",
+            "This is an offline candidate package. Server installation requires the coordinated mod loader.")));
+        p.Children.Add(Card(pack));
+    }
+    private void Project(StackPanel p)
+    {
+        Header(p, L("Карта и записи игр", "Map and recordings"), L("Исходные файлы остаются на месте. Анализ и история хранятся в проекте.", "Original files stay in place. Analysis and history belong to the project."));
+        var card = Stack(12);
+        card.Children.Add(Text(L("Карта BSP", "BSP map")));
+        card.Children.Add(PathRow(S.Bsp, v => { S.Bsp = v; S.Save(); }, true));
+        card.Children.Add(Text(L("Папка проекта", "Project folder")));
+        card.Children.Add(PathRow(S.Project, v => { S.Project = v; S.Save(); }, false));
+        card.Children.Add(Text(L("DM2 / MVD2 или ZIP / RAR", "DM2 / MVD2 or ZIP / RAR")));
+        var inputs = new TextBox { AcceptsReturn = true, MinHeight = 80, Text = string.Join("\n", S.Inputs) };
+        inputs.TextChanged += (_, _) => { S.Inputs = (inputs.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); };
+        card.Children.Add(inputs);
+        card.Children.Add(Text(L("Отдельные записи триксов (по одному пути в строке)", "Separate trick recordings (one path per line)")));
+        var tricks = new TextBox { AcceptsReturn = true, MinHeight = 55, Text = string.Join("\n", S.Tricks) };
+        tricks.TextChanged += (_, _) => { S.Tricks = (tricks.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); };
+        card.Children.Add(tricks);
+        card.Children.Add(Button(L("Добавить записи…", "Add recordings…"), async () =>
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = true,
+                FileTypeFilter = [new FilePickerFileType("Quake recordings") { Patterns = ["*.dm2", "*.mvd2", "*.zip", "*.rar"] }] });
+            S.Inputs = S.Inputs.Concat(files.Select(f => f.TryGetLocalPath()).Where(v => v != null).Cast<string>()).Distinct().ToArray(); S.Save(); ShowPage();
+        }));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        row.Children.Add(Button(L("Проверить список", "Inspect inputs"), () => Start("inventory"), job: true));
+        row.Children.Add(Button(L("Импорт / дополнение", "Import / update"), () => Start("import_project", "update"), true, true));
+        row.Children.Add(Button(L("Новая выборка", "Fresh selection"), () => Start("import_project", "fresh"), job: true));
+        card.Children.Add(row);
+        card.Children.Add(Text(L("Донор стиля (пусто — все игроки)", "Style donor (empty — all players)")));
+        var donor = new TextBox { Text = S.Donor };
+        donor.TextChanged += (_, _) => { S.Donor = donor.Text ?? ""; S.Save(); };
+        card.Children.Add(donor);
+        card.Children.Add(Button(L("Изучить маршруты и стиль", "Analyze routes and style"), () => Start("analyze_project"), job: true));
+        card.Children.Add(Button(L("Проверить движения через физику", "Verify motion through physics"), () => Start("fit_movement"), job: true));
+        p.Children.Add(Card(card));
     }
     private void Jobs(StackPanel p)
     {
@@ -249,11 +333,25 @@ public sealed class MainWindow : Window
         foreach (var b in _jobButtons) b.IsEnabled = false;
         try
         {
-            var terminal = await _runner.RunAsync(S, new() { ["action"] = action, ["backend"] = S.Backend,
-                ["profile"] = S.Profile, ["dataset"] = S.Dataset, ["store"] = S.Store, ["mode"] = mode, ["epochs"] = 20 });
+            var request = new Dictionary<string, object?> { ["action"] = action, ["backend"] = S.Backend,
+                ["profile"] = S.Profile, ["dataset"] = S.Dataset, ["store"] = S.Store, ["mode"] = mode, ["epochs"] = 20,
+                ["bsp"] = S.Bsp, ["inputs"] = S.Inputs, ["project"] = S.Project, ["projects"] = S.Projects,
+                ["tricks"] = S.Tricks, ["include_chat"] = S.IncludeChat,
+                ["batch_size"] = S.BatchSize,
+                ["donor"] = S.Donor, ["context"] = S.Context, ["knowledge"] = S.Knowledge, ["package"] = S.Package,
+                ["library"] = Path.Combine(StudioSettings.Home, "library") };
+            if (action == "prepare_sequences") request["dataset"] = Path.Combine(StudioSettings.Home, "datasets", Guid.NewGuid().ToString("N"));
+            if (action is "train_sequences" or "sequence_status" or "calibrate") { request["dataset"] = S.SequenceDataset; request["store"] = S.TemporalStore; request["profile"] = S.Profile == "reference" ? "compact" : S.Profile; }
+            if (action == "compile_package") { request["output"] = Path.Combine(StudioSettings.Home, "exports", Guid.NewGuid().ToString("N") + ".btsknowledge"); if (S.IncludeModel) request["model_store"] = S.TemporalStore; }
+            var terminal = await _runner.RunAsync(S, request);
             if (terminal.GetProperty("type").GetString() == "completed")
             {
                 var result = terminal.GetProperty("result");
+                if (action == "prepare_sequences") S.SequenceDataset = result.GetProperty("dataset").GetString()!;
+                if (action == "analyze_project") S.Knowledge = result.GetProperty("path").GetString()!;
+                if (action == "compile_package") S.Package = result.GetProperty("package").GetString()!;
+                if (action == "calibrate") S.BatchSize = result.GetProperty("batch_size").GetInt32();
+                S.Save();
                 _result = Summarize(action, result);
                 if (action == "hardware") _hardware = string.Join("  ·  ", result.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()));
             }
@@ -273,6 +371,8 @@ public sealed class MainWindow : Window
     }
     private string Summarize(string action, JsonElement result)
     {
+        if (action is "import_project" or "analyze_project" or "prepare_sequences" or "compile_package" or "verify_package" or "install_offline" or "train_sequences" or "inventory" or "sequence_status" or "fit_movement" or "calibrate")
+            return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
         if (action == "hardware")
             return string.Join("\n", result.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()))
                 + "\n" + L("Предлагаемый профиль: ", "Suggested profile: ") + result.GetProperty("suggested_profile");
@@ -324,7 +424,7 @@ public sealed class MainWindow : Window
             var window = new MainWindow { ShowInTaskbar = false, ShowActivated = false,
                 WindowStartupLocation = WindowStartupLocation.Manual, Position = new PixelPoint(-20000, -20000) };
             window.Show();
-            foreach (var page in new[] { "home", "train", "models", "library", "jobs", "settings" })
+            foreach (var page in new[] { "home", "project", "train", "models", "library", "jobs", "settings" })
             {
                 window._page = page; window.BuildShell();
                 var root = (Control)window.Content!;
@@ -338,6 +438,6 @@ public sealed class MainWindow : Window
             }
             window.Close();
         }
-        File.WriteAllText(Path.Combine(folder, "ui-test.json"), "{\"pass\":true,\"views\":24}");
+        File.WriteAllText(Path.Combine(folder, "ui-test.json"), "{\"pass\":true,\"views\":28}");
     }
 }

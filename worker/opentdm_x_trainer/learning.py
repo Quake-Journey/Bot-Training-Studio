@@ -25,14 +25,37 @@ def atomic_json(path, doc):
 
 @contextlib.contextmanager
 def writer_lock(root):
+    root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     path = root / ".writer.lock"
-    with path.open("x", encoding="utf-8") as f:
-        f.write(str(os.getpid()))
+    # The OS releases this guard even on process termination. Keep the inode
+    # permanently: unlinking an advisory lock can create two independent locks.
+    guard = (root / ".writer.guard").open("a+b")
+    guard.seek(0, 2)
+    if guard.tell() == 0:
+        guard.write(b"0"); guard.flush()
+    guard.seek(0)
     try:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(guard.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(guard.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        guard.close()
+        raise FileExistsError("Another writer is using this project/store") from error
+    try:
+        path.write_text(str(os.getpid()), encoding="utf-8")
         yield
     finally:
-        path.unlink()
+        path.unlink(missing_ok=True)
+        if os.name == "nt":
+            guard.seek(0)
+            msvcrt.locking(guard.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(guard.fileno(), fcntl.LOCK_UN)
+        guard.close()
 
 
 def device_for(backend):

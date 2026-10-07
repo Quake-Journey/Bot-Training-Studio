@@ -51,12 +51,82 @@ def run(request_path):
         if cancelled():
             raise InterruptedError("Cancelled before starting")
         action = request["action"]
-        if action == "hardware":
+        if action == "inventory":
+            from .projects import inventory
+            rows = inventory(request["inputs"], request.get("map"))
+            atomic_json(job / "inventory.json", dict(recordings=rows))
+            result = dict(recordings=rows[:200], total=len(rows), inventory=str(job / "inventory.json"))
+        elif action == "import_project":
+            from .projects import import_project, inventory
+            selected=request.get("selected")
+            if selected is None and request.get("tricks"):
+                selected=inventory(request["inputs"])+[dict(row,role="tricks") for row in inventory(request["tricks"])]
+            result = import_project(request["bsp"], request["inputs"], request["project"],
+                                    request.get("mode", "update"), event=lambda row: emit("progress", **row),
+                                    cancelled=cancelled, selected=selected)
+        elif action == "fit_movement":
+            from .movement import fit
+            result=fit(request["project"],request.get("donor") or None,int(request.get("limit",200)),
+                event=lambda row:emit("progress",**row),cancelled=cancelled)
+        elif action == "analyze_project":
+            from .knowledge import analyze
+            result=analyze(request["project"],request.get("donor") or None,
+                event=lambda row:emit("progress",**row),cancelled=cancelled)
+        elif action == "prepare_sequences":
+            from .sequences import prepare
+            sources=[]
+            for value in request["projects"]:
+                folder=Path(value);meta=json.loads((folder/"project.json").read_text())
+                revision=folder/"revisions"/meta["active_revision"]
+                sources.append(dict(combat=str(revision/"combat.parquet"),groups=str(revision/"groups.json"),bsp=str(folder/"map.bsp"),map=meta["map"]))
+            result=prepare(sources,request["dataset"],int(request.get("context",16)),int(request.get("limit",2000)),
+                donor=request.get("donor") or None,event=lambda row:emit("progress",**row),cancelled=cancelled)
+            result=dict(dataset=request["dataset"],context=result["context"],splits=result["splits"],runtime_qualified=False)
+        elif action == "train_sequences":
+            from .temporal import train
+            import torch
+            backend=request["backend"]
+            if backend=="auto":backend=next((d["backend"] for d in hardware() if d["backend"]!="cpu"),"cpu")
+            options=dict(profile=request.get("profile","compact"),backend=backend,
+                mode=request.get("mode","fresh"),epochs=int(request.get("epochs",20)),batch_size=int(request.get("batch_size",64)),
+                event=lambda row:emit("progress",**row),cancelled=cancelled)
+            try:
+                result=train(request["dataset"],request["store"],**options)
+            except (torch.OutOfMemoryError, RuntimeError) as error:
+                memory_error=isinstance(error,torch.OutOfMemoryError) or str(error).startswith('GPU memory exhausted at batch 1')
+                if request["backend"]!='auto' or backend=='cpu' or not memory_error:raise
+                emit('progress',stage='cpu_fallback',message='GPU memory insufficient; continue locally on CPU')
+                options['backend']='cpu'
+                if (Path(request['store'])/'work/resume.json').exists():options['mode']='resume'
+                result=train(request["dataset"],request["store"],**options)
+        elif action == "sequence_status":
+            from .temporal import active
+            folder,meta=active(request["store"])
+            result=dict(generation=folder.name,validation=meta["validation"],test=meta["test"],
+                profile=meta["profile"],context=meta["context"],runtime_qualified=False)
+        elif action == "compile_package":
+            from .packages import compile
+            result=compile(request["project"],request["knowledge"],request["output"],request.get("model_store") or None,
+                include_chat=bool(request.get("include_chat",False)))
+        elif action == "verify_package":
+            from .packages import validate
+            manifest,_=validate(request["package"])
+            result=dict(map=manifest["map"],id=manifest["id"],integrity_valid=True,server_installable=False)
+        elif action == "install_offline":
+            from .packages import install_offline
+            result=install_offline(request["package"],request["library"])
+        elif action == "hardware":
             from .models import catalog, choose_profile
             devices = hardware()
             selected = next((d for d in devices if d["backend"] != "cpu"), devices[0])
             result = dict(devices=devices, profiles=catalog(),
                           suggested_profile=choose_profile(selected.get("free_gib", 0), selected["backend"]))
+        elif action == "calibrate":
+            from .resources import calibrate
+            backend=request["backend"]
+            if backend=="auto":backend=next((d["backend"] for d in hardware() if d["backend"]!="cpu"),"cpu")
+            result=calibrate(request.get("profile","compact"),backend,int(request.get("context",16)),
+                event=lambda row:emit("progress",**row),cancelled=cancelled)
         elif action == "probe":
             from .learning import device_for, model_new
             from .models import PROFILES
@@ -106,7 +176,9 @@ def run(request_path):
             result = dict(generation=folder.name, manifest=manifest)
         else:
             raise ValueError("Unsupported action: " + str(action))
-        if action != "train" and cancelled():
+        # Mutating actions own their cancellation/commit boundary. A request
+        # arriving after the atomic commit must not relabel success as cancelled.
+        if action in ("hardware", "probe", "status", "inventory", "verify_package") and cancelled():
             raise InterruptedError("Cancelled")
         atomic_json(job / "result.json", result)
         emit("completed", result=result)

@@ -47,8 +47,10 @@ def donor_match(aliases, requested):
     it to merge train/test groups; those come from whole-match metadata.
     """
     wanted = nickname(requested)
-    if len(wanted) < 3 or not aliases:
+    if not wanted or not aliases:
         return False
+    if len(wanted) < 3:
+        return all(nickname(n) == wanted for n in aliases)
 
     def close(actual):
         if actual == wanted:

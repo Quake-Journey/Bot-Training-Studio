@@ -2,10 +2,10 @@
 
 Локальная программа обучения ботов OpenTDM-X по опыту игроков.
 
-**0.1 — предварительная версия для разработки.** Уже работает настольный
-интерфейс и обучение экспериментальной модели движения на подготовленных
-наблюдениях. Обучить новую игровую карту непосредственно из BSP + DM2/MVD2
-и установить результат на сервер пока нельзя.
+**0.2 — предварительная версия для разработки.** Работают прямой импорт
+BSP + DM2/MVD2, проекты карт, извлечение маршрутов и обучение по истории
+матчей. Это офлайн-исследование: полноценная тактическая модель ещё не готова,
+устанавливать полученные пакеты в текущий игровой мод нельзя.
 
 ## Что работает
 
@@ -21,6 +21,18 @@
   проверка качества на старых картах, поколения, контроль целостности и откат.
 - Проверка обновления весов, ошибок и отмены; прежняя активная модель
   сохраняется при неудаче. Данные обрабатываются локально.
+- Самостоятельный декодер DM2/MVD2, выбор записей из ZIP, проверка BSP,
+  неизменяемые ревизии проектов и кэш с проверкой хешей. RAR требует UnRAR.
+- Последовательности наблюдений с геометрией и неизвестными состояниями;
+  разделение по целым парам соперников, а не по случайным кадрам.
+- Встроенный Pmove для обычных маршрутов и непрерывной проверки восстановленных
+  движений. Успешный короткий фрагмент не объявляется целым выученным триксом.
+- Контрольные точки модели и оптимизатора, продолжение после остановки,
+  защита прежних карт через повтор данных и сохранение предсказаний старой модели.
+- Пакеты данных с проверкой целостности и библиотекой отката. Непрошедшие
+  проверку выходы модели не включаются в пакет вместе с успешными.
+- Сборщик отдельных встроенных сред CPU/CUDA для Windows: пользователю
+  такого пакета не требуется устанавливать Python. AMD/Intel ещё не проверены.
 
 ## К чему идём
 
@@ -32,14 +44,14 @@ Python и компиляции DLL на стороне пользователя.
 
 Сейчас формат взаимодействия с модом спроектирован, но будущий универсальный
 загрузчик потребует согласованного официального обновления OpenTDM-X.
-Экспериментальная модель в этой версии предсказывает движение, **не команды
+Экспериментальная модель в этой версии предсказывает наблюдения, **не команды
 игровому боту**. Низкая ошибка предсказания не доказывает хорошую игру.
 
 ## Начать разработку
 
 См. [сборку и запуск](docs/BUILD_RU.md),
 [архитектуру и этапы](docs/ARCHITECTURE_RU.md),
-[результаты проверок 0.1](docs/VALIDATION_0.1_RU.md).
+[результаты проверок 0.2](docs/VALIDATION_0.2_RU.md).
 
 Исходный код: GPL-2.0-or-later, см. LICENSE и
 [происхождение компонентов](docs/PROVENANCE.md). Демки, карты, обученные веса,
@@ -48,9 +60,9 @@ Python и компиляции DLL на стороне пользователя.
 ## English
 
 An independent offline desktop training application for OpenTDM-X bots.
-This development preview contains a bilingual Avalonia UI and a local
-PyTorch motion-learning worker. It supports actual optimizer updates,
-isolated jobs, cancellation, continual replay and versioned checkpoints.
-**Direct map/demo training and installable server knowledge are not implemented
-yet.** No game-module source, private recordings or pretrained weights are
-included. See the architecture and validation documents for current limits.
+This development preview contains a bilingual Avalonia UI, bundled native
+demo/physics tools, transactional map projects, sequence learning and continual
+replay. CPU/CUDA runtimes can be bundled for autonomous Windows use.
+**Tactical learning and installable server knowledge are not complete.**
+No game-module source, private recordings or pretrained weights are included.
+See the architecture and validation documents for current limits.

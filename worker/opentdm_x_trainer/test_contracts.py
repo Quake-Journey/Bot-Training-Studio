@@ -29,6 +29,8 @@ class Contracts(unittest.TestCase):
         self.assertTrue(donor_match(["pacifst"], "Pacifist"))
         self.assertFalse(donor_match(["Pacifist", "Purri"], "Pacifist"))
         self.assertFalse(donor_match(["aid"], "ai"))
+        self.assertTrue(donor_match(["q"], "q"))
+        self.assertFalse(donor_match(["quake"], "q"))
 
     def test_features_only_current_past_and_enemy_mask(self):
         r = dict(view=[0, 90, 0], origin=[0, 0, 0], velocity=[0, 320, 0],
