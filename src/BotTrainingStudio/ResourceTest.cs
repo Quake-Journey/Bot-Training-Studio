@@ -44,6 +44,12 @@ internal static class ResourceTest
             var missing = GpuCounters.Combine(cards, [], [], []);
             Check(missing.All(g => g.Percent == null && g.Used == null && g.Shared == null), "Unavailable counters remain unknown, not zero");
             Check(GpuCounters.Combine([], [], [], []).Count == 0, "No GPU degrades without fabricated adapter");
+            Check(GpuCounters.HardwareAdapter(0x231b) && !GpuCounters.HardwareAdapter(0x342) && !GpuCounters.HardwareAdapter(0x105), "Physical GPU retained; indirect display and software renderer excluded");
+            Check(GpuCounters.HardwareAdapter(2048), "Headless compute hardware remains eligible");
+            Check(GpuCounters.Combine([], [("pid_1_luid_"+a+"_phys_0_eng_0_engtype_3D", 25)], [("luid_"+a+"_phys_0", 100)], []).Count==0,
+                "Unmapped performance counters never invent a GPU menu entry");
+            Check(GpuCounters.Combine([cards[0], cards[1] with { Name = cards[0].Name }], [], [], []).Count==2,
+                "Two genuine adapters with identical names remain separate");
 
             int pid = 0;
             var runner = new JobRunner();

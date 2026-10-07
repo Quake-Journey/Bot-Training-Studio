@@ -18,7 +18,7 @@ public sealed partial class MainWindow
     private string RuntimeStatus() => _runtimeChecking ? L("Проверяем Python и библиотеки…", "Checking Python and libraries…")
         : _runtimeProbe?.Ready == true && _runtimeProbePath == S.Python
         ? "✓ Python " + _runtimeProbe.Python + " · PyTorch " + _runtimeProbe.Torch
-        : L("Среда обучения не готова. Установи её здесь или выбери готовую.", "The training runtime is not ready. Install it here or select an existing one.");
+        : L("Среда обучения не готова. Выбери или установи Python в настройках.", "The training runtime is not ready. Select or install Python in Settings.");
 
     private Border RuntimeCard()
     {

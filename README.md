@@ -2,7 +2,7 @@
 
 Локальная программа обучения ботов OpenTDM-X по опыту игроков.
 
-**0.3.0-preview.1 — предварительная версия для разработки.** Работают прямой импорт
+**0.3.0-preview.2 — предварительная версия для разработки.** Работают прямой импорт
 BSP + DM2/MVD2, проекты карт, извлечение маршрутов и обучение по истории
 матчей. Это офлайн-исследование: полноценная тактическая модель ещё не готова,
 устанавливать полученные пакеты в текущий игровой мод нельзя.
@@ -17,12 +17,12 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 с номером версии, описанием изменений и документацией. Текущая версия остаётся
 предварительной. [Правила выпуска и нумерации](docs/RELEASING.md).
 
-## Что нового в 0.3.0-preview.1
+## Что нового в 0.3.0-preview.2
 
-- Постоянный выбор CPU/GPU: обнаружение Python больше не скрывает настройку вычислений.
-- Номер версии, история изменений RU/EN, показ изменений при первом запуске обновления.
-- Автоматическая проверка GitHub Releases и кнопка обновления, проверка архивов, отмена и восстановление прежних файлов при ошибке установки.
-- Обновление сохраняет проекты, модели и настройки; неизменившиеся библиотеки повторно не скачиваются.
+- Стартовая проверка Python и библиотек перенесена в отдельное модальное окно; установщик больше не появляется и не исчезает на главной странице.
+- Список GPU показывает физические видеокарты: исключены виртуальные дисплеи, программный рендерер Windows и безымянные записи счётчиков. Две настоящие карты одной модели остаются отдельными устройствами.
+- После запуска новой распакованной копии используется её комплектный модуль обучения, а не модуль из прежней папки.
+- Обновлены руководства RU/EN. Проверка среды не перекрывается журналом изменений и не блокирует обработку интерфейса.
 
 [Полный список изменений RU](docs/CHANGELOG.ru.md) · [English change notes](docs/CHANGELOG.en.md).
 
@@ -99,7 +99,7 @@ Python и компиляции DLL на стороне пользователя.
 ## English
 
 An independent offline desktop training application for OpenTDM-X bots.
-Version **0.3.0-preview.1** adds persistent compute-device selection, bilingual change notes and verified GitHub updates with cancellation and rollback.
+Version **0.3.0-preview.2** adds persistent compute-device selection, bilingual change notes and verified GitHub updates with cancellation and rollback.
 This development preview contains a bilingual Avalonia UI, bundled native
 demo/physics tools, transactional map projects, sequence learning and continual
 replay. CPU/CUDA model libraries are bundled; compatible Python is reused or

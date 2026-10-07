@@ -38,7 +38,7 @@ public sealed partial class MainWindow
 
     private async Task ShowChangesAsync(bool firstStart = false)
     {
-        if (_changesOpen || _exitPromptOpen || _updateCancellation != null) return;
+        if (_changesOpen || _startupDialog != null || _exitPromptOpen || _updateCancellation != null) return;
         _changesOpen = true;
         try
         {
@@ -76,7 +76,7 @@ public sealed partial class MainWindow
 
     private async Task CheckUpdatesAsync(bool manual)
     {
-        if (_checkingUpdates || _updateCancellation != null || _lifetime.IsCancellationRequested || _changesOpen || _exitPromptOpen) return;
+        if (_checkingUpdates || _startupDialog != null || _updateCancellation != null || _lifetime.IsCancellationRequested || _changesOpen || _exitPromptOpen) return;
         _checkingUpdates = true;
         try
         {

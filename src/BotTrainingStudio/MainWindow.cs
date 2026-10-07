@@ -52,9 +52,16 @@ public sealed partial class MainWindow : Window
         _eventTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _eventTimer.Tick += (_, _) => FlushEvents();
         _stay.Click += (_, _) => { _exitAfterJob = false; _stay.IsVisible = false; };
-        Opened += async (_, _) => { _resourceTimer.Start(); _eventTimer.Start(); if (_checkRuntime) await RefreshRuntimeAsync(); };
-        Opened += async (_, _) => { if (_checkRuntime) await FirstVersionStartAsync(); };
-        Closed += (_, _) => { _lifetime.Cancel(); _resourceTimer.Stop(); _eventTimer.Stop(); _resources.Dispose(); };
+        Opened += async (_, _) =>
+        {
+            _resourceTimer.Start(); _eventTimer.Start();
+            if (_checkRuntime)
+            {
+                await ShowStartupCheckAsync(RefreshRuntimeAsync);
+                if (!_lifetime.IsCancellationRequested) await FirstVersionStartAsync();
+            }
+        };
+        Closed += (_, _) => { _lifetime.Cancel(); _startupDialog?.Hide(); _changesDialog?.Hide(); _resourceTimer.Stop(); _eventTimer.Stop(); _resources.Dispose(); };
         Width = 1180; Height = 820; MinWidth = 980; MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         _runner.Received += _events.Receive;
@@ -206,7 +213,6 @@ public sealed partial class MainWindow : Window
         Header(p, L("Опыт игроков. Новые возможности ботов.", "Player experience. New bot capabilities."),
             L("Локальная студия обучения для OpenTDM-X", "Local learning studio for OpenTDM-X"));
         p.Children.Add(ComputeCard());
-        if (_runtimeProbe?.Ready != true) p.Children.Add(RuntimeCard());
         var banner = Stack(10);
         var tag = Text(L("ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ  ·  ", "DEVELOPMENT PREVIEW  ·  ") + AppVersion.Current, 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
         banner.Children.Add(Text(L("От записей игры к проверяемому опыту", "From recordings to verifiable experience"), 20, true));
@@ -215,6 +221,7 @@ public sealed partial class MainWindow : Window
         banner.Children.Add(Button(L("Открыть обучение", "Open training"), () => Navigate("train"), true)); p.Children.Add(Card(banner));
         var ready = Stack(10); ready.Children.Add(Text(L("Готовность к работе", "Readiness"), 19, true));
         ready.Children.Add(Text(RuntimeStatus()));
+        ready.Children.Add(Button(L("Настройка Python", "Python setup"), () => Navigate("settings")));
         ready.Children.Add(Text((File.Exists(Path.Combine(S.WorkerDirectory, "opentdm_x_trainer", "studio.py")) ? "✓  " : "○  ") + L("Модуль анализа и обучения", "Analysis and learning worker")));
         ready.Children.Add(Text(_hardware.Length > 0 ? _hardware : L("Оборудование ещё не проверено", "Hardware has not been checked yet")));
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };

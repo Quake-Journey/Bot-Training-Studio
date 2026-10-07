@@ -60,7 +60,8 @@ internal sealed class LoadMeter : Border
         if (!_ids.SequenceEqual(ids))
         {
             _ids = ids;
-            _gpu.ItemsSource = snapshot.Gpus.Select(g => g.Name).ToArray();
+            _gpu.ItemsSource = snapshot.Gpus.Select((g, i) => snapshot.Gpus.Count(other => other.Name == g.Name) > 1
+                ? $"GPU {i + 1} — {g.Name}" : g.Name).ToArray();
             int index = selected == null ? -1 : Array.IndexOf(ids, selected);
             // First detection prefers the largest discrete card; subsequent samples preserve explicit selection.
             if (index < 0 && ids.Length > 0)

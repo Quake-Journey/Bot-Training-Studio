@@ -78,11 +78,7 @@ public sealed class StudioSettings
         if (result.Language is not ("system" or "ru" or "en")) result.Language = "system";
         if (!RuntimeSetup.Backends.Contains(result.RuntimeBackend)) result.RuntimeBackend = "cpu";
         if (RuntimeSetup.Libraries is { } libraries) result.RuntimeBackend = libraries.Backend;
-        if (result.WorkerDirectory.Length == 0)
-        {
-            var bundled = Path.Combine(AppContext.BaseDirectory, "worker");
-            if (Directory.Exists(bundled)) result.WorkerDirectory = bundled;
-        }
+        result.WorkerDirectory = ResolveWorkerDirectory(result.WorkerDirectory, AppContext.BaseDirectory);
         if (result.Python.Length == 0)
         {
             var bundled = Path.Combine(AppContext.BaseDirectory, "runtime", "python.exe");
@@ -93,6 +89,19 @@ public sealed class StudioSettings
         if (result.DecisionStore.Length == 0) result.DecisionStore = Path.Combine(Home, "models", "decisions");
         if (result.Project.Length == 0) result.Project = Path.Combine(Home, "projects", "new-map");
         return result;
+    }
+    internal static string ResolveWorkerDirectory(string selected, string applicationDirectory)
+    {
+        string bundled = Path.Combine(applicationDirectory, "worker");
+        if (!Directory.Exists(bundled)) return selected;
+        if (string.IsNullOrWhiteSpace(selected)) return bundled;
+        // A copied portable application must not keep running the worker of its older copy.
+        // Preserve an explicitly selected development worker outside a packaged installation.
+        string old = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selected));
+        string? parent = Path.GetDirectoryName(old);
+        return Path.GetFileName(old).Equals("worker", StringComparison.OrdinalIgnoreCase) && parent != null
+            && File.Exists(Path.Combine(parent, "BotTrainingStudio.exe")) && File.Exists(Path.Combine(parent, "build.json"))
+            ? bundled : selected;
     }
     public void Save()
     {

@@ -1,5 +1,12 @@
 # Bot Training Studio
 
+## 0.3.0-preview.2 — 2026-10-07
+
+- Startup checks for Python and libraries now use a separate modal dialog; the installer no longer appears and disappears on Home.
+- The GPU list contains physical adapters, excluding virtual displays, the Windows software renderer and unnamed counter entries. Two genuine GPUs of the same model remain separate.
+- A newly extracted portable copy uses its own bundled learning worker instead of a previous installation folder.
+- Updated RU/EN guides. Runtime checks do not overlap change notes or block UI event processing.
+
 ## 0.3.0-preview.1 — 2026-10-07
 
 - Persistent CPU/GPU selection on Home, Training and Settings: checking Python no longer hides computation choices.

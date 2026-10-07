@@ -1,6 +1,6 @@
 # Bot Training Studio by ly
 
-User guide • English • Version 0.3.0-preview.1, development preview
+User guide • English • Version 0.3.0-preview.2, development preview
 
 Updated: 7 October 2026
 
@@ -31,6 +31,10 @@ The future game module will read validated data rather than run a neural network
 The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**. Application and model libraries are included. Installed Python 3.13 x64 is reused; if missing, the Studio offers installation (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
 
 CPU and NVIDIA CUDA have been tested. ROCm and Intel XPU code paths exist, but support for specific AMD/Intel GPUs has not yet been hardware-qualified. GPU profiles do not have a universal 4 GB VRAM limit. A larger profile requires more resources and does not by itself guarantee better quality.
+
+At startup, a separate modal dialog checks Python and the bundled libraries in the background. It closes after a successful check. If Python is not ready, open Settings or continue without training. You can quit during the check. The installer does not appear on Home; the CPU/GPU computation setting stays in place.
+
+After extracting a complete build into a new folder, the Studio uses that build's **worker**. An explicitly selected standalone development worker is preserved.
 
 ### Language: Settings → Language
 
@@ -133,6 +137,8 @@ The panel at the bottom updates approximately once per second:
 
 Selecting a GPU in this panel changes **only the readings**; select the training device in the job settings. Unavailable readings appear as a dash. Shared GPU memory is shown in the tooltip. Capacity can differ from the advertised amount, and summing child-process RAM can count shared pages more than once.
 
+The monitoring selector lists physical GPUs. Virtual displays and the Windows software renderer are excluded. Two genuine cards of the same model remain separate, numbered entries. This selector chooses load readings; training computation is selected separately.
+
 ### Cancellation and exit
 
 Cancel the current job on the **Jobs** page. Closing the window while a job runs opens a question. **Keep working** is the default and leaves computation running. **Stop and quit** requests a cooperative stop and closes the window after the process finishes.
@@ -171,7 +177,7 @@ For recovery, preserve projects, original BSP files and recordings, model folder
 
 | Situation | Action |
 | --- | --- |
-| Runtime not found | Check the complete runtime/worker package. Set Python and worker paths in Settings if needed. |
+| Runtime not found | Check the complete libraries/worker package and installed Python. Set Python and worker paths in Settings if needed. |
 | GPU not detected | Run the hardware check. Verify that the installed runtime supports the GPU; select CPU for a basic check. |
 | Insufficient memory | Reduce batch size, context or profile and repeat resource measurement. Keep the previous model. |
 | RAR cannot be opened | Install WinRAR/UnRAR or provide extracted DM2/MVD2 files or ZIP. |

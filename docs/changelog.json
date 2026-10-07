@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.3.0-preview.2",
+    "date": "2026-10-07",
+    "ru": [
+      "Стартовая проверка Python и библиотек перенесена в отдельное модальное окно; установщик больше не появляется и не исчезает на главной странице.",
+      "Список GPU показывает физические видеокарты: исключены виртуальные дисплеи, программный рендерер Windows и безымянные записи счётчиков. Две настоящие карты одной модели остаются отдельными устройствами.",
+      "После запуска новой распакованной копии используется её комплектный модуль обучения, а не модуль из прежней папки.",
+      "Обновлены руководства RU/EN. Проверка среды не перекрывается журналом изменений и не блокирует обработку интерфейса."
+    ],
+    "en": [
+      "Startup checks for Python and libraries now use a separate modal dialog; the installer no longer appears and disappears on Home.",
+      "The GPU list contains physical adapters, excluding virtual displays, the Windows software renderer and unnamed counter entries. Two genuine GPUs of the same model remain separate.",
+      "A newly extracted portable copy uses its own bundled learning worker instead of a previous installation folder.",
+      "Updated RU/EN guides. Runtime checks do not overlap change notes or block UI event processing."
+    ]
+  },
+  {
     "version": "0.3.0-preview.1",
     "date": "2026-10-07",
     "ru": [
@@ -20,7 +36,11 @@
   {
     "version": "0.2.0",
     "date": "2026-10-07",
-    "ru": ["Исходная предварительная студия: импорт карт и записей, экспериментальное обучение, профили памяти, RU/EN интерфейс и мониторинг ресурсов."],
-    "en": ["Initial development preview: map/recording import, experimental learning, memory profiles, RU/EN interface and resource monitoring."]
+    "ru": [
+      "Исходная предварительная студия: импорт карт и записей, экспериментальное обучение, профили памяти, RU/EN интерфейс и мониторинг ресурсов."
+    ],
+    "en": [
+      "Initial development preview: map/recording import, experimental learning, memory profiles, RU/EN interface and resource monitoring."
+    ]
   }
 ]

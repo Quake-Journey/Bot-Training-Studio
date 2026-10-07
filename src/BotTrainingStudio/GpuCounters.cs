@@ -16,7 +16,7 @@ internal sealed class GpuCounters : IDisposable
     public GpuCounters()
     {
         if (!OperatingSystem.IsWindows()) return;
-        try { _adapters.AddRange(EnumerateAdapters()); } catch (Exception) { /* Counter-only fallback. */ }
+        try { _adapters.AddRange(EnumerateAdapters()); } catch (Exception) { /* Show unavailable readings instead of invented GPUs. */ }
         if (PdhOpenQueryW(null, IntPtr.Zero, out _query) != 0) return;
         Add(@"\GPU Engine(*)\Utilization Percentage", out _engines);
         Add(@"\GPU Adapter Memory(*)\Dedicated Usage", out _memory);
@@ -46,20 +46,15 @@ internal sealed class GpuCounters : IDisposable
         IEnumerable<(string name, double value)> engines, IEnumerable<(string name, double value)> memory,
         IEnumerable<(string name, double value)> shared)
     {
-        var cards = adapters.ToDictionary(a => a.Id, a => a);
+        var cards = adapters.GroupBy(a => a.Id).ToDictionary(g => g.Key, g => g.First());
         var busy = new Dictionary<(string card, string engine), double>();
         var dedicated = new Dictionary<string, double>();
         var system = new Dictionary<string, double>();
-        void Seen(string id)
-        {
-            if (!cards.ContainsKey(id)) cards[id] = new GpuLoad(id, "GPU " + id, null, null, null, null);
-        }
         foreach (var (name, value) in engines)
         {
             string? id = Luid(name);
             var engine = EngineId.Match(name);
-            if (id == null || !engine.Success || !double.IsFinite(value) || value < 0) continue;
-            Seen(id);
+            if (id == null || !cards.ContainsKey(id) || !engine.Success || !double.IsFinite(value) || value < 0) continue;
             // Sum processes on one physical engine; independent engines can work concurrently.
             // Taking the busiest engine avoids adding 3D/compute/copy into an invented >100% load.
             string physical = name[(name.IndexOf("_phys_", StringComparison.OrdinalIgnoreCase) + 6)..];
@@ -70,8 +65,8 @@ internal sealed class GpuCounters : IDisposable
         void Memory(IEnumerable<(string name, double value)> rows, Dictionary<string, double> target)
         {
             foreach (var (name, value) in rows)
-                if (Luid(name) is { } id && double.IsFinite(value) && value >= 0)
-                { Seen(id); target[id] = target.GetValueOrDefault(id) + value; }
+                if (Luid(name) is { } id && cards.ContainsKey(id) && double.IsFinite(value) && value >= 0)
+                { target[id] = target.GetValueOrDefault(id) + value; }
         }
         Memory(memory, dedicated); Memory(shared, system);
         return cards.Values.Select(a => a with
@@ -124,6 +119,7 @@ internal sealed class GpuCounters : IDisposable
                 try
                 {
                     if (Method<GetDesc>(adapter, 10)(adapter, out var desc) != 0 || (desc.Flags & 2) != 0) continue;
+                    if (AdapterType(desc.LuidLow, desc.LuidHigh) is { } type && !HardwareAdapter(type)) continue;
                     string luid = $"0x{desc.LuidHigh:x8}_0x{desc.LuidLow:x8}";
                     yield return new GpuLoad(luid, desc.Description, null, null, (long)desc.DedicatedVideoMemory, null);
                 }
@@ -135,6 +131,35 @@ internal sealed class GpuCounters : IDisposable
 
     private static T Method<T>(IntPtr obj, int slot) where T : Delegate =>
         Marshal.GetDelegateForFunctionPointer<T>(Marshal.ReadIntPtr(Marshal.ReadIntPtr(obj), slot * IntPtr.Size));
+
+    // D3DKMT_ADAPTERTYPE: render/compute hardware, excluding software and IddCx display aliases.
+    // Never collapse matching names: two physical GPUs may have the same model name.
+    internal static bool HardwareAdapter(uint type) => (type & (4u | 64u)) == 0 && (type & (1u | 2048u)) != 0;
+
+    private static uint? AdapterType(uint low, uint high)
+    {
+        var open = new OpenAdapter { Low = low, High = high };
+        try
+        {
+            if (D3DKMTOpenAdapterFromLuid(ref open) != 0) return null;
+            IntPtr data = Marshal.AllocHGlobal(4);
+            try
+            {
+                var query = new QueryAdapter { Handle = open.Handle, Type = 15, Data = data, Size = 4 };
+                return D3DKMTQueryAdapterInfo(ref query) == 0 ? unchecked((uint)Marshal.ReadInt32(data)) : null;
+            }
+            finally { Marshal.FreeHGlobal(data); }
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException) { return null; }
+        finally { if (open.Handle != 0) { var close = new CloseAdapter { Handle = open.Handle }; D3DKMTCloseAdapter(ref close); } }
+    }
+
+    [StructLayout(LayoutKind.Sequential)] private struct OpenAdapter { public uint Low, High, Handle; }
+    [StructLayout(LayoutKind.Sequential)] private struct QueryAdapter { public uint Handle, Type; public IntPtr Data; public uint Size; }
+    [StructLayout(LayoutKind.Sequential)] private struct CloseAdapter { public uint Handle; }
+    [DllImport("gdi32.dll")] private static extern int D3DKMTOpenAdapterFromLuid(ref OpenAdapter adapter);
+    [DllImport("gdi32.dll")] private static extern int D3DKMTQueryAdapterInfo(ref QueryAdapter query);
+    [DllImport("gdi32.dll")] private static extern int D3DKMTCloseAdapter(ref CloseAdapter adapter);
 
     public void Dispose()
     {
