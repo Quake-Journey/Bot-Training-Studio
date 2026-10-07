@@ -6,16 +6,16 @@
     {
       "language": "RU",
       "source": "USER_GUIDE_RU.md",
-      "source_sha256": "f5991b10f3519498c519af9ad72fc093256443648720fea2a43eed3b12198ed5",
+      "source_sha256": "3fbdbc8ecda311d7978ef35a7beb0ed8613c3818ad4a899c54352f51f8111e1e",
       "file": "Bot_Training_Studio_User_Guide_RU.docx",
-      "sha256": "529770f4e54745cf8f36442cf14227c492193a00847b12349c0960f12e89e18f"
+      "sha256": "6b3a7d7f6c5ffaf2a0b5f8d1f552b3035b277274cb99439fa6271d6da0329cc2"
     },
     {
       "language": "EN",
       "source": "USER_GUIDE_EN.md",
-      "source_sha256": "87468198f759522581e1cfa8ebe0dd34b8d20f62b4a531f50c9176c5d999abce",
+      "source_sha256": "23fe9a0850694bef4d1e9c82a9f81e27c003f11b17ca64aeda249ddbd11dd5ea",
       "file": "Bot_Training_Studio_User_Guide_EN.docx",
-      "sha256": "78d1ab2703883b2102a99ce23266d8d5085f77a100b80b9fc32b5004c39b344f"
+      "sha256": "065bb713d5e1cea54cf7c86697fa920112f9742e6e9c7d7f4a0477bf330d8a8c"
     }
   ]
 }

@@ -106,4 +106,3 @@ public sealed partial class MainWindow
         catch(Exception error) { File.WriteAllText(Path.Combine(folder,"updates-ui-test.json"),JsonSerializer.Serialize(new{pass=false,checks,error=error.ToString()},Updates.Json)); return 1; }
     }
 }
-

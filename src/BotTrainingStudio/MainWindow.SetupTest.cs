@@ -147,4 +147,3 @@ public sealed partial class MainWindow
         finally { beat.Stop(); }
     }
 }
-

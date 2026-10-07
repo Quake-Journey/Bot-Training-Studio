@@ -101,7 +101,7 @@ This policy does not declare the current development preview complete.
 directory and the `--rar` executable. It builds the complete multipart RAR,
 the smaller application ZIP, checksummed library ZIP parts, updater manifest,
 paired DOCX attachments and SHA256SUMS. Library parts can be prepared first with
-`--libraries-only`; a matching verified local receipt permits reuse. The pinned official Python archive belongs in `runtime/`; personal settings,
+`--libraries-only`; a matching verified local receipt permits reuse. The pinned official Python archive belongs in `worker/runtime/`; personal settings,
 recordings and trained models do not belong in this package. Run
 `scripts/fetch_python_embed.py` at build time before `build_preview.ps1`.
 

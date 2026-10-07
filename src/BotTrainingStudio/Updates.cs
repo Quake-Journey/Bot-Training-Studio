@@ -122,7 +122,7 @@ internal sealed class Updates(HttpClient? client = null) : IDisposable
     }
 
     internal static bool OwnedPath(string relative, bool libraries) => libraries ? relative.StartsWith("libraries/", StringComparison.Ordinal) :
-        relative.StartsWith("worker/", StringComparison.Ordinal) || relative.StartsWith("docs/", StringComparison.Ordinal) || relative.StartsWith("runtime/", StringComparison.Ordinal) ||
+        relative.StartsWith("worker/", StringComparison.Ordinal) || relative.StartsWith("docs/", StringComparison.Ordinal) ||
         relative is "BotTrainingStudio.exe" or "libSkiaSharp.dll" or "libHarfBuzzSharp.dll" or "README.md" or "LICENSE" or "build.json" or "package-files.json" or "CHANGELOG.ru.md" or "CHANGELOG.en.md";
 
     internal static void Extract(string archivePath, string output, bool libraries, CancellationToken token)

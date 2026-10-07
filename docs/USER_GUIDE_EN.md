@@ -28,7 +28,7 @@ The future game module will read validated data rather than run a neural network
 
 ## 2. Installation and interface settings
 
-The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**, **runtime**. Application and model libraries are included. Compatible installed Python or a complete Python 3.12+ environment is reused. Otherwise, the included Python 3.13 x64 can be installed offline (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
+The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**. Application and model libraries are included. Compatible installed Python or a complete Python 3.12+ environment is reused. Otherwise, the included Python 3.13 x64 can be installed offline (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
 
 CPU and NVIDIA CUDA have been tested. ROCm and Intel XPU code paths exist, but support for specific AMD/Intel GPUs has not yet been hardware-qualified. GPU profiles do not have a universal 4 GB VRAM limit. A larger profile requires more resources and does not by itself guarantee better quality.
 
@@ -202,7 +202,7 @@ The project is distributed under GPL-2.0-or-later. Dependency licenses remain in
 
 ## 8. Installing bundled Python
 
-Settings contains **Python interpreter**. Application and model libraries ship in **libraries**; the verified official Python 3.13 x64 archive ships in **runtime**. Startup validates the selected environment with a small computation.
+Settings contains **Python interpreter**. Application and model libraries ship in **libraries**; the verified official Python 3.13 x64 archive ships in **worker/runtime**. Startup validates the selected environment with a small computation.
 
 1. If a ready environment is found, work immediately. **Select installed Python…** allows manual selection. Python 3.13 uses Studio libraries; complete Python 3.12+ environments can use their own libraries after computation checks.
 2. Otherwise, click **Install Python** in the startup dialog or **Install bundled Python** in Settings. The Studio verifies the local archive's SHA256 and extracts it into its own data folder. No internet or administrator access is required.
@@ -213,7 +213,7 @@ Allow about **100 MiB of free space including headroom**. Package libraries are 
 
 ### Finding Python
 
-The Studio checks selected Python, its managed installations, PATH and Windows registrations. Packaged binary libraries require Python 3.13 x64. Complete Python 3.12+ environments are checked separately; incompatible bundled libraries are not injected. If **libraries** or **runtime** is missing, extract the complete package.
+The Studio checks selected Python, its managed installations, PATH and Windows registrations. Packaged binary libraries require Python 3.13 x64. Complete Python 3.12+ environments are checked separately; incompatible bundled libraries are not injected. If **libraries** or **worker/runtime** is missing, extract the complete package.
 
 ### Cancellation and retry
 
@@ -234,4 +234,3 @@ Installation requires choosing **Update** rather than **Later**. Updates cannot 
 After checksum verification, the Studio closes, a separate helper replaces application files and restarts the new version. Ordinary replacement errors restore the previous files. Projects, models, settings and user files are preserved. Unchanged bundled libraries are verified and are not downloaded again. Replacing libraries requires additional free space; temporary **.updates** files are stored beside the application and successful downloads are cleaned after restart.
 
 For a first installation, download all **BotTrainingStudio-…-win-x64.part…rar** volumes into one folder and extract the first volume with a RAR-capable archiver. All libraries are included. Separate **app** and **libraries.zip.00…** assets are for the built-in updater; GitHub's automatically generated **Source code** archives are for developers. DOCX guides are also attached separately. A complete release can be extracted into a new folder; projects and settings are stored separately.
-

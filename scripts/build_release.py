@@ -50,7 +50,7 @@ def build(package, output, rar, libraries_only=False):
     if json.loads((package/'build.json').read_text(encoding='utf-8-sig'))['version'] != version:
         raise ValueError('Rebuild the application package at the current version')
     python_lock = json.loads((ROOT/'packaging/runtime-cpu-win-x64.lock.json').read_text())
-    python_archive = package/'runtime'/python_lock['python_url'].rsplit('/',1)[-1]
+    python_archive = package/'worker/runtime'/python_lock['python_url'].rsplit('/',1)[-1]
     if not python_archive.is_file() or sha(python_archive) != python_lock['python_sha256']:
         raise ValueError('Complete packages require the pinned official Python archive')
     forbidden = {'.dm2','.mvd2','.bsp','.cfg','.safetensors','.npz','.parquet','.pdb','.pyc'}
@@ -63,7 +63,7 @@ def build(package, output, rar, libraries_only=False):
         if path.is_symlink(): raise ValueError('Link in package: '+relative)
         if relative.startswith('libraries/'):
             libraries[relative] = sha(path)
-        elif relative.startswith(('docs/','worker/','runtime/')) or relative in top_files:
+        elif relative.startswith(('docs/','worker/')) or relative in top_files:
             if path.suffix in forbidden: raise ValueError('Unexpected private/generated file: '+relative)
             app[relative] = sha(path)
         elif relative != 'package-files.json':
@@ -109,7 +109,7 @@ def build(package, output, rar, libraries_only=False):
     listing.write_text('\n'.join([*app,*libraries,'package-files.json'])+'\n',encoding='utf-16')
     archive=output/f'BotTrainingStudio-{version}-win-x64.rar'
     print('Creating full portable RAR volumes',flush=True)
-    subprocess.run([str(rar),'a','-cfg-','-ma5','-m3','-md32m','-mt2','-v1000m','-scul','-y','-idq',str(archive),'@'+str(listing)],cwd=package,check=True)
+    subprocess.run([str(rar),'a','-cfg-','-ma5','-m1','-md32m','-mt4','-v1000m','-scul','-y','-idq',str(archive),'@'+str(listing)],cwd=package,check=True)
     volumes=sorted(output.glob(f'BotTrainingStudio-{version}-win-x64*.rar'))
     if not volumes:raise ValueError('No complete package volumes produced')
     subprocess.run([str(rar),'t','-cfg-','-idq',str(volumes[0])],check=True)

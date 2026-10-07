@@ -121,7 +121,7 @@ internal sealed class RuntimeSetup
     public Task<string> InstallAsync(string home, string backend, Action<RuntimeProgress> progress, CancellationToken token) =>
         Task.Run(() => InstallCore(home, backend, progress, token), token);
 
-    internal static string BundledPythonArchive => Path.Combine(AppContext.BaseDirectory, "runtime",
+    internal static string BundledPythonArchive => Path.Combine(AppContext.BaseDirectory, "worker", "runtime",
         Path.GetFileName(new Uri(Archives(Manifest("cpu"))[0].Url).AbsolutePath));
 
     internal static async Task CopyVerifiedArchiveAsync(string source, string destination, string digest, CancellationToken token)

@@ -22,7 +22,8 @@ if (!$DevelopmentOnly) {
     $pythonArchive = Join-Path $repoRoot "dist\python-embed\$pythonName"
     if (!(Test-Path -LiteralPath $pythonArchive -PathType Leaf)) { throw 'Cache the bundled interpreter first: scripts/fetch_python_embed.py' }
     if ((Get-FileHash -LiteralPath $pythonArchive -Algorithm SHA256).Hash -ne $pythonLock.python_sha256) { throw 'Bundled Python checksum mismatch' }
-    $runtimeOutput = Join-Path $Output 'runtime'
+    # Previous public updaters already accept worker/ files; keep bootstrap there.
+    $runtimeOutput = Join-Path $Output 'worker\runtime'
     New-Item -ItemType Directory -Force -Path $runtimeOutput | Out-Null
     Copy-Item -LiteralPath $pythonArchive -Destination $runtimeOutput -Force
 }

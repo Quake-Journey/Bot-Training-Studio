@@ -2,7 +2,7 @@
 
 The application/model libraries are included in the end-user package. They
 are prepared from a qualified builder runtime by `bundle_libraries.py`, without
-copying Python site-packages. The pinned official interpreter archive is shipped separately in runtime/. Users never install PyTorch or the full CUDA Toolkit.
+copying Python site-packages. The pinned official interpreter archive is shipped separately in worker/runtime/. Users never install PyTorch or the full CUDA Toolkit.
 
 The application reuses an installed Python 3.13 x64 (selection, PATH, Windows
 Python registration, previous managed installation). If missing it offers to

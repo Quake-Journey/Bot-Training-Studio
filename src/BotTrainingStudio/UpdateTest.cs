@@ -33,7 +33,7 @@ internal static class UpdateTest
             Check(!StudioVersion.TryParse("../0.3.0", out _), "Untrusted version is not a path");
             string version = "0.3.1-preview.1", prefix = "https://github.com/" + Updates.Repository + "/releases/download/v" + version + "/";
             var appFiles = new Dictionary<string, byte[]> { ["BotTrainingStudio.exe"] = Encoding.UTF8.GetBytes("new-exe"), ["build.json"] = "{}"u8.ToArray(),
-                ["worker/opentdm_x_trainer/studio.py"] = "new worker"u8.ToArray(), ["runtime/python-embed.zip"] = "bundled Python"u8.ToArray(), ["docs/Bot_Training_Studio_User_Guide_RU.docx"] = "ru"u8.ToArray(), ["docs/Bot_Training_Studio_User_Guide_EN.docx"] = "en"u8.ToArray() };
+                ["worker/opentdm_x_trainer/studio.py"] = "new worker"u8.ToArray(), ["worker/runtime/python-embed.zip"] = "bundled Python"u8.ToArray(), ["docs/Bot_Training_Studio_User_Guide_RU.docx"] = "ru"u8.ToArray(), ["docs/Bot_Training_Studio_User_Guide_EN.docx"] = "en"u8.ToArray() };
             var libs = new Dictionary<string, byte[]> { ["libraries/studio-libraries.json"] = "model-libraries"u8.ToArray(), ["libraries/test.py"] = "library"u8.ToArray() };
             var inventory = new PackageInventory(version, hash(libs["libraries/studio-libraries.json"]), appFiles.ToDictionary(p => p.Key, p => hash(p.Value)), libs.ToDictionary(p => p.Key, p => hash(p.Value)));
             byte[] inventoryBytes = JsonSerializer.SerializeToUtf8Bytes(inventory, Updates.Json); appFiles["package-files.json"] = inventoryBytes;
