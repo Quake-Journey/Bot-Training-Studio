@@ -7,6 +7,8 @@ namespace BotTrainingStudio;
 public sealed class JobRunner
 {
     private int _busy;
+    private int _workerPid;
+    public int WorkerPid => Volatile.Read(ref _workerPid);
     private string? _folder;
     public bool IsRunning => Volatile.Read(ref _busy) != 0;
     public string? JobFolder => _folder;
@@ -50,6 +52,7 @@ public sealed class JobRunner
             info.ArgumentList.Add("--request");
             info.ArgumentList.Add(path);
             using var process = Process.Start(info) ?? throw new InvalidOperationException("Cannot start worker");
+            Volatile.Write(ref _workerPid, process.Id);
             using var stderr = new StreamWriter(Path.Combine(_folder, "stderr.txt"));
             var errorTask = Task.Run(async () =>
             {
@@ -93,6 +96,6 @@ public sealed class JobRunner
                 throw;
             }
         }
-        finally { Volatile.Write(ref _busy, 0); }
+        finally { Volatile.Write(ref _workerPid, 0); Volatile.Write(ref _busy, 0); }
     }
 }

@@ -13,6 +13,9 @@ namespace BotTrainingStudio;
 public sealed class MainWindow : Window
 {
     private readonly JobRunner _runner = new();
+    private readonly ResourceSampler _resources;
+    private readonly DispatcherTimer _resourceTimer;
+    private LoadMeter? _meter;
     private readonly ContentControl _content = new();
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Height = 5 };
@@ -30,6 +33,11 @@ public sealed class MainWindow : Window
     public MainWindow()
     {
         Title = "Bot Training Studio by ly";
+        _resources = new ResourceSampler(() => _runner.WorkerPid);
+        _resourceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _resourceTimer.Tick += (_, _) => _meter?.Show(_resources.Latest);
+        Opened += (_, _) => _resourceTimer.Start();
+        Closed += (_, _) => { _resourceTimer.Stop(); _resources.Dispose(); };
         Width = 1180; Height = 820; MinWidth = 980; MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         _runner.Received += e => Dispatcher.UIThread.Post(() => OnEvent(e));
@@ -97,6 +105,10 @@ public sealed class MainWindow : Window
         var outer = new DockPanel();
         var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(32, 8, 32, 18) };
         bottom.Children.Add(_status); bottom.Children.Add(_progress);
+        string? selectedGpu = _meter?.SelectedGpu;
+        _meter = new LoadMeter(L, Light);
+        _meter.Show(_resources.Latest, selectedGpu);
+        bottom.Children.Add(_meter);
         DockPanel.SetDock(bottom, Dock.Bottom); outer.Children.Add(bottom); outer.Children.Add(_content);
         Grid.SetColumn(outer, 1); shell.Children.Add(outer);
         Content = shell;
@@ -478,6 +490,7 @@ public sealed class MainWindow : Window
     public static void RenderTests(string folder)
     {
         Directory.CreateDirectory(folder);
+        int views = 0;
         foreach (var language in new[] { "ru", "en" })
         foreach (var theme in new[] { "dark", "light" })
         {
@@ -485,6 +498,9 @@ public sealed class MainWindow : Window
             var window = new MainWindow { ShowInTaskbar = false, ShowActivated = false,
                 WindowStartupLocation = WindowStartupLocation.Manual, Position = new PixelPoint(-20000, -20000) };
             window.Show();
+            // The sampler runs independently; obtain real readings before capturing the panel.
+            Thread.Sleep(1600);
+            window._resourceTimer.Stop();
             foreach (var page in new[] { "home", "project", "train", "models", "library", "jobs", "settings" })
             {
                 window._page = page; window.BuildShell();
@@ -496,6 +512,7 @@ public sealed class MainWindow : Window
                 image.Render(root);
                 using var output = File.Create(Path.Combine(folder, $"{language}-{theme}-{page}.png"));
                 image.Save(output, new PngBitmapEncoderOptions());
+                views++;
                 if (page == "train" && window._content.Content is ScrollViewer scroll)
                 {
                     scroll.Offset = new Vector(0, scroll.Extent.Height);
@@ -504,10 +521,30 @@ public sealed class MainWindow : Window
                     lower.Render(root);
                     using var lowerOutput = File.Create(Path.Combine(folder, $"{language}-{theme}-train-decisions.png"));
                     lower.Save(lowerOutput, new PngBitmapEncoderOptions());
+                    views++;
                 }
+            }
+            window.Width = 980; window.Height = 700; window.Navigate("home");
+            var fixtures = new[]
+            {
+                ("resources-busy", new ResourceSnapshot(DateTimeOffset.UtcNow, 92, 50L << 30, 64L << 30,
+                    true, 38, 24L << 30, [new GpuLoad("test-a", "GPU A", 16, 1L << 30, 8L << 30, 0),
+                    new GpuLoad("test-b", "GPU B · 32 GiB", 97, 30L << 30, 32L << 30, 1L << 30)])),
+                ("resources-unavailable", ResourceSnapshot.Empty)
+            };
+            foreach (var (name, fixture) in fixtures)
+            {
+                window._meter!.Show(fixture);
+                Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
+                var root = (Control)window.Content!;
+                root.Measure(new Size(980, 700)); root.Arrange(new Rect(0, 0, 980, 700));
+                using var image = new RenderTargetBitmap(new PixelSize(980, 700), new Vector(96, 96));
+                image.Render(root);
+                using var output = File.Create(Path.Combine(folder, $"{language}-{theme}-{name}.png"));
+                image.Save(output, new PngBitmapEncoderOptions()); views++;
             }
             window.Close();
         }
-        File.WriteAllText(Path.Combine(folder, "ui-test.json"), "{\"pass\":true,\"views\":32}");
+        File.WriteAllText(Path.Combine(folder, "ui-test.json"), JsonSerializer.Serialize(new { pass = true, views }));
     }
 }

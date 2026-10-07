@@ -18,6 +18,7 @@ success does not close tactical learning or gameplay validation.
 - [ ] Offline movement/route/shot qualification, uncertainty and failure reports.
 - [x] Portable candidate DATA package compiler/validator and offline rollback library.
 - [ ] Complete UI workflows and managed runtime installation/bundling.
+- [x] Persistent background Windows CPU/RAM/GPU/VRAM meter with separate job CPU/RAM.
 - [ ] Real demo/map regression tests, clean-machine/package checks and docs.
 
 Game DLL loading/execution remains excluded. Actual online match quality with a
