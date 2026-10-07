@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import zipfile
+from io import BytesIO
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN = {".dm2", ".mvd2", ".bsp", ".cfg", ".safetensors", ".npz", ".parquet", ".exe", ".dll", ".pdb"}
@@ -35,6 +37,18 @@ def main():
             raise ValueError("Unexpected large source file: " + name)
         if path.suffix.lower() != ".png" and any(re.search(pattern, data) for pattern in PATTERNS):
             raise ValueError("Private path or credential-like content: " + name)
+        if path.suffix.lower() == ".docx":
+            with zipfile.ZipFile(BytesIO(data)) as document:
+                for part in document.namelist():
+                    if part.endswith((".xml", ".rels")):
+                        content = document.read(part)
+                        if any(re.search(pattern, content) for pattern in PATTERNS):
+                            raise ValueError("Private content in document: " + name)
+                        # Expand text for the separate secret scanner as well. This inspection directory
+                        # belongs to the exported scan snapshot, never to the published source tree.
+                        inspection = out / "_document_inspection" / path.stem / part.replace("/", "_")
+                        inspection.parent.mkdir(parents=True, exist_ok=True)
+                        inspection.write_bytes(content)
         target = out / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)

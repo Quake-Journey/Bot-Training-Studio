@@ -12,7 +12,14 @@ public sealed class App : Application
     {
         Styles.Add(new FluentAvaloniaTheme());
         Settings = StudioSettings.Load();
+        ApplyLanguage();
         ApplyTheme();
+    }
+    public static void ApplyLanguage()
+    {
+        var culture = System.Globalization.CultureInfo.GetCultureInfo(Settings.EffectiveLanguage == "ru" ? "ru-RU" : "en-US");
+        System.Globalization.CultureInfo.CurrentUICulture = culture;
+        System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
     }
     public static void ApplyTheme() => Current!.RequestedThemeVariant = Settings.Theme switch
     {
@@ -37,6 +44,8 @@ public sealed class App : Application
             }
             if (args.Contains("--ui-test"))
             {
+                // The capture suite opens/closes several windows; keep the dispatcher alive between them.
+                desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
                 int at = Array.IndexOf(args, "--ui-test");
                 try { MainWindow.RenderTests(args[at + 1]); Environment.Exit(0); }
                 catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); }

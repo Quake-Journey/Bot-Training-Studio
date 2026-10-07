@@ -7,12 +7,20 @@ BSP + DM2/MVD2, проекты карт, извлечение маршрутов
 матчей. Это офлайн-исследование: полноценная тактическая модель ещё не готова,
 устанавливать полученные пакеты в текущий игровой мод нельзя.
 
+Руководства: **[Русский — DOCX](docs/Bot_Training_Studio_User_Guide_RU.docx)** ·
+**[English — DOCX](docs/Bot_Training_Studio_User_Guide_EN.docx)**.
+Читать на GitHub: [RU](docs/USER_GUIDE_RU.md) · [EN](docs/USER_GUIDE_EN.md).
+В программе они доступны в «Настройки → Документация».
+
 ## Что работает
 
 - Отдельное настольное приложение: русский/английский интерфейс, светлая,
   тёмная и системная темы; запуск, прогресс, отмена и результаты заданий.
   Фоновая работа не блокирует навигацию. Выход во время задания требует
   подтверждения и ожидает штатной остановки с сохранением контрольных точек.
+- Язык по умолчанию соответствует интерфейсу системы: русский для русской
+  системы, английский для остальных. В настройках можно выбрать «Как в системе»,
+  «Русский» или «English»; выбор сохраняется между запусками.
 - Постоянная панель CPU, RAM, GPU и видеопамяти, как в Mapgen Studio:
   значения и цветные полоски, выбор видеокарты, отдельные CPU/RAM задания.
   Мониторинг Windows работает в фоне и не требует запуска Python.
@@ -78,3 +86,12 @@ replay. CPU/CUDA runtimes can be bundled for autonomous Windows use.
 **Tactical learning and installable server knowledge are not complete.**
 No game-module source, private recordings or pretrained weights are included.
 See the architecture and validation documents for current limits.
+
+The UI defaults to Russian for a Russian system UI language, and English
+otherwise. **Settings → Language** offers **Use system language**, **Русский**
+and **English** with immediate switching and a saved preference.
+
+**[English user guide (DOCX)](docs/Bot_Training_Studio_User_Guide_EN.docx)** ·
+**[Russian user guide (DOCX)](docs/Bot_Training_Studio_User_Guide_RU.docx)**.
+Both are bundled in `docs` and accessible through **Settings → Documentation**.
+Editable guides: [English](docs/USER_GUIDE_EN.md), [Russian](docs/USER_GUIDE_RU.md).

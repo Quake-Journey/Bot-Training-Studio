@@ -1,10 +1,45 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace BotTrainingStudio;
 
 public sealed class StudioSettings
 {
-    public string Language { get; set; } = "ru";
+    public string Language { get; set; } = "system";
+    private static readonly string SystemUiLanguage = ReadSystemUiLanguage();
+    [JsonIgnore] public string EffectiveLanguage => ResolveLanguage(Language, SystemUiLanguage);
+    public static string ResolveLanguage(string? choice, string systemUiLanguage) => choice switch
+    {
+        "ru" => "ru", "en" => "en",
+        _ => systemUiLanguage.Split('-', '_')[0].Equals("ru", StringComparison.OrdinalIgnoreCase) ? "ru" : "en"
+    };
+    private static string ReadSystemUiLanguage()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                uint size = 0;
+                if (GetUserPreferredUILanguages(8, out _, null, ref size) && size is > 0 and < 4096)
+                {
+                    var languages = new char[size];
+                    if (GetUserPreferredUILanguages(8, out _, languages, ref size))
+                    {
+                        string first = new string(languages).Split('\0')[0];
+                        if (first.Length > 0) return first;
+                    }
+                }
+                return CultureInfo.GetCultureInfo(GetUserDefaultUILanguage()).Name;
+            }
+            catch (Exception) { }
+        }
+        return CultureInfo.CurrentUICulture.Name;
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool GetUserPreferredUILanguages(uint flags, out uint count, [Out] char[]? buffer, ref uint length);
+    [DllImport("kernel32.dll")] private static extern ushort GetUserDefaultUILanguage();
     public string Theme { get; set; } = "dark";
     public string Python { get; set; } = "";
     public string WorkerDirectory { get; set; } = "";
@@ -37,6 +72,7 @@ public sealed class StudioSettings
         StudioSettings result;
         try { result = JsonSerializer.Deserialize<StudioSettings>(File.ReadAllText(Path.Combine(Home, "settings.json"))) ?? new(); }
         catch { result = new(); }
+        if (result.Language is not ("system" or "ru" or "en")) result.Language = "system";
         if (result.WorkerDirectory.Length == 0)
         {
             var bundled = Path.Combine(AppContext.BaseDirectory, "worker");

@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "version": "0.2",
+  "builder_sha256": "7166cd298b6b25104307e71e9b9f0ef40c2527a75ae23ca4ef12bacc0d767333",
+  "guides": [
+    {
+      "language": "RU",
+      "source": "USER_GUIDE_RU.md",
+      "source_sha256": "a7a1b109c4ed68b036b5c5e31fa8448e1fe206be5810d82846c96d55bf8a2f2b",
+      "file": "Bot_Training_Studio_User_Guide_RU.docx",
+      "sha256": "ef379384d755bf64ca36e50c347817a1be7a566e5854ee6b7a10d76231b99dd3"
+    },
+    {
+      "language": "EN",
+      "source": "USER_GUIDE_EN.md",
+      "source_sha256": "f8130305bbb93e6a60ab619a0ebc3ea02ffb876c5a230707be87bdc5fd1d38b8",
+      "file": "Bot_Training_Studio_User_Guide_EN.docx",
+      "sha256": "ff2bf663b72bdad19bfa2e4ed7d93d25a1a63ca9a8c2c921641a9a9d182baf91"
+    }
+  ]
+}

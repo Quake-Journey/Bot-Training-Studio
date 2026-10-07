@@ -23,6 +23,13 @@ Do not copy the old bot repository history or private operational reports.
 
 UI: RU/EN, light/dark/system themes, responsive background jobs, useful progress,
 recoverable errors and bounded storage. Settings live outside tracked source.
+Language defaults to the Windows user's UI language: Russian only for Russian,
+English otherwise. Settings must offer system/Russian/English and preserve an
+explicit choice. Maintain matching Russian AND English DOCX user guides under
+docs with their Markdown sources; update both for user-facing changes. Rebuild
+with scripts/build_user_docs.py, pass --check, inspect Word-rendered pages,
+include both in packages and publish both on GitHub. Never add linked assets or
+automatic external-field updates to a guide.
 Use ProcessStartInfo.ArgumentList; workers receive structured JSON, never shell
 command fragments. Preserve previous model generation on failure/cancel.
 Keep model computation, process/stream management and protocol parsing off the

@@ -7,6 +7,8 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.Styling;
 using System.Text.Json;
+using System.Diagnostics;
+using Avalonia.VisualTree;
 using FluentAvalonia.UI.Controls;
 
 namespace BotTrainingStudio;
@@ -35,7 +37,7 @@ public sealed partial class MainWindow : Window
     private readonly Button _stay = new() { IsVisible = false };
     private bool JobActive => _runner.IsRunning || _jobUiActive;
     private StudioSettings S => App.Settings;
-    private string L(string ru, string en) => S.Language == "ru" ? ru : en;
+    private string L(string ru, string en) => S.EffectiveLanguage == "ru" ? ru : en;
     private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#8b83ff"));
     private bool Light => ActualThemeVariant == ThemeVariant.Light;
 
@@ -153,7 +155,7 @@ public sealed partial class MainWindow : Window
             sidebar.Children.Add(item);
         }
         sidebar.Children.Add(new Border { Height = 24 });
-        sidebar.Children.Add(Text("0.2 · development preview", 11));
+        sidebar.Children.Add(Text(L("0.2 · предварительная версия", "0.2 · development preview"), 11));
         shell.Children.Add(new Border { Background = new SolidColorBrush(Color.Parse(Light ? "#ebebf3" : "#211f2b")), Child = sidebar });
         var outer = new DockPanel();
         var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(32, 8, 32, 18) };
@@ -195,7 +197,7 @@ public sealed partial class MainWindow : Window
         Header(p, L("Опыт игроков. Новые возможности ботов.", "Player experience. New bot capabilities."),
             L("Локальная студия обучения для OpenTDM-X", "Local learning studio for OpenTDM-X"));
         var banner = Stack(10);
-        var tag = Text("DEVELOPMENT PREVIEW  ·  0.2", 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
+        var tag = Text(L("ПРЕДВАРИТЕЛЬНАЯ ВЕРСИЯ  ·  0.2", "DEVELOPMENT PREVIEW  ·  0.2"), 12, true); tag.Foreground = Accent; banner.Children.Add(tag);
         banner.Children.Add(Text(L("От записей игры к проверяемому опыту", "From recordings to verifiable experience"), 20, true));
         banner.Children.Add(Text(L("Выбери BSP и демки, изучи маршруты и стиль игрока, обучи модель по истории матчей. Студия сохраняет поколения и проверяет новый опыт. Пакеты пока предназначены для офлайн-проверки; качество игры в моде ещё не подтверждено.",
             "Select a BSP and recordings, analyze routes and player style, and train on match histories. The Studio preserves generations and evaluates new learning. Packages are for offline review; mod gameplay is not yet qualified.")));
@@ -213,8 +215,18 @@ public sealed partial class MainWindow : Window
     private ComboBox Choice(string[] values, string selected, Action<string> update)
     {
         var box = new ComboBox { ItemsSource = values, SelectedItem = selected, MinWidth = 190 };
-        box.SelectionChanged += (_, _) => { if (box.SelectedItem is string v) { update(v); S.Save(); } };
+        box.SelectionChanged += (_, _) => { if (box.SelectedItem is string v && v != selected) { selected = v; update(v); S.Save(); } };
         return box;
+    }
+    private static void WhenEdited(TextBox field, Action<string> update)
+    {
+        string previous = field.Text ?? "";
+        field.TextChanged += (_, _) =>
+        {
+            string value = field.Text ?? "";
+            if (value == previous) return;
+            previous = value; update(value);
+        };
     }
     private void Training(StackPanel p)
     {
@@ -223,7 +235,7 @@ public sealed partial class MainWindow : Window
         var sequence = Stack(12);
         sequence.Children.Add(Text(L("Проекты карт — по одному пути в строке", "Map projects — one folder per line")));
         var projects = new TextBox { AcceptsReturn = true, MinHeight = 70, Text = string.Join("\n", S.Projects) };
-        projects.TextChanged += (_, _) => { S.Projects = (projects.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); };
+        WhenEdited(projects, value => { S.Projects = value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); });
         sequence.Children.Add(projects);
         sequence.Children.Add(Button(L("Добавить текущую карту", "Add current map"), () => { S.Projects = S.Projects.Append(S.Project).Distinct().ToArray(); S.Save(); ShowPage(); }));
         sequence.Children.Add(Text(L("История наблюдений (кадров)", "Observed history (frames)")));
@@ -345,11 +357,11 @@ public sealed partial class MainWindow : Window
         card.Children.Add(PathRow(S.Project, v => { S.Project = v; S.Save(); }, false));
         card.Children.Add(Text(L("DM2 / MVD2 или ZIP / RAR", "DM2 / MVD2 or ZIP / RAR")));
         var inputs = new TextBox { AcceptsReturn = true, MinHeight = 80, Text = string.Join("\n", S.Inputs) };
-        inputs.TextChanged += (_, _) => { S.Inputs = (inputs.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); };
+        WhenEdited(inputs, value => { S.Inputs = value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); });
         card.Children.Add(inputs);
         card.Children.Add(Text(L("Отдельные записи триксов (по одному пути в строке)", "Separate trick recordings (one path per line)")));
         var tricks = new TextBox { AcceptsReturn = true, MinHeight = 55, Text = string.Join("\n", S.Tricks) };
-        tricks.TextChanged += (_, _) => { S.Tricks = (tricks.Text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); };
+        WhenEdited(tricks, value => { S.Tricks = value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); S.Save(); });
         card.Children.Add(tricks);
         card.Children.Add(Button(L("Добавить записи…", "Add recordings…"), async () =>
         {
@@ -364,7 +376,7 @@ public sealed partial class MainWindow : Window
         card.Children.Add(row);
         card.Children.Add(Text(L("Донор стиля (пусто — все игроки)", "Style donor (empty — all players)")));
         var donor = new TextBox { Text = S.Donor };
-        donor.TextChanged += (_, _) => { S.Donor = donor.Text ?? ""; S.Save(); };
+        WhenEdited(donor, value => { S.Donor = value; S.Save(); });
         card.Children.Add(donor);
         card.Children.Add(Button(L("Изучить маршруты и стиль", "Analyze routes and style"), () => Start("analyze_project"), job: true));
         card.Children.Add(Button(L("Проверить движения через физику", "Verify motion through physics"), () => Start("fit_movement"), job: true));
@@ -383,7 +395,7 @@ public sealed partial class MainWindow : Window
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
         var field = new TextBox { Text = value, MinWidth = 100 };
-        field.TextChanged += (_, _) => update(field.Text ?? "");
+        WhenEdited(field, update);
         var browse = Button(L("Выбрать…", "Browse…"), async () =>
         {
             if (file)
@@ -404,15 +416,47 @@ public sealed partial class MainWindow : Window
         Header(p, L("Настройки", "Settings"), L("Внешний вид и локальная среда обучения", "Appearance and local training runtime"));
         var c = Stack(12);
         c.Children.Add(Text(L("Язык", "Language")));
-        c.Children.Add(Choice(["ru", "en"], S.Language, v => { S.Language = v; Dispatcher.UIThread.Post(BuildShell); }));
+        var options = new[]
+        {
+            new ComboBoxItem { Content = L("Как в системе", "Use system language"), Tag = "system" },
+            new ComboBoxItem { Content = "Русский", Tag = "ru" },
+            new ComboBoxItem { Content = "English", Tag = "en" }
+        };
+        var language = new ComboBox { Name = "LanguageChoice", ItemsSource = options, MinWidth = 240,
+            SelectedItem = options.First(o => (string)o.Tag! == S.Language) };
+        language.SelectionChanged += (_, _) =>
+        {
+            if (language.SelectedItem is not ComboBoxItem { Tag: string value }) return;
+            if (S.Language == value) return;
+            S.Language = value; S.Save(); App.ApplyLanguage(); Dispatcher.UIThread.Post(BuildShell);
+        };
+        c.Children.Add(language);
+        c.Children.Add(Text(L("По умолчанию: русский для русской системы, английский для остальных. Выбор сохраняется.",
+            "Default: Russian for a Russian system, English otherwise. Your selection is saved."), 13));
         c.Children.Add(Text(L("Тема", "Theme")));
         c.Children.Add(Choice(["dark", "light", "system"], S.Theme, v => { S.Theme = v; App.ApplyTheme(); Dispatcher.UIThread.Post(BuildShell); }));
         c.Children.Add(Text(L("Python среды обучения", "Training environment Python")));
         c.Children.Add(PathRow(S.Python, v => { S.Python = v; S.Save(); }, true));
         c.Children.Add(Text(L("Папка worker", "Worker folder")));
         c.Children.Add(PathRow(S.WorkerDirectory, v => { S.WorkerDirectory = v; S.Save(); }, false));
-        c.Children.Add(Text(L("В этой сборке среда выбирается вручную. Управляемая установка среды будет добавлена перед пользовательским выпуском.", "This build uses a manually selected environment. Managed setup is required before the end-user release.")));
+        c.Children.Add(Text(L("В комплектной сборке среда определяется автоматически. Эти пути нужны для выбора другой установленной среды обучения.",
+            "Bundled builds detect their runtime automatically. These paths let you select another installed training runtime.")));
         p.Children.Add(Card(c));
+        var docs = Stack(10);
+        docs.Children.Add(Text(L("Документация", "Documentation"), 18, true));
+        docs.Children.Add(Button("Руководство на русском (DOCX)", () => OpenGuide("RU")));
+        docs.Children.Add(Button("User guide in English (DOCX)", () => OpenGuide("EN")));
+        p.Children.Add(Card(docs));
+    }
+    private void OpenGuide(string language)
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "docs", $"Bot_Training_Studio_User_Guide_{language}.docx");
+            if (!File.Exists(path)) throw new FileNotFoundException(L("Руководство отсутствует в комплекте программы.", "The guide is missing from the application package."));
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex) { _status.Text = L("Не удалось открыть руководство: ", "Could not open the guide: ") + ex.Message; }
     }
     private async void Start(string action, string mode = "fresh")
     {
@@ -557,10 +601,12 @@ public sealed partial class MainWindow : Window
     {
         Directory.CreateDirectory(folder);
         int views = 0;
+        int languageChecks = 0;
         foreach (var language in new[] { "ru", "en" })
         foreach (var theme in new[] { "dark", "light" })
         {
-            App.Settings.Language = language; App.Settings.Theme = theme; App.ApplyTheme();
+            App.Settings.Language = language; App.Settings.Theme = theme; App.ApplyLanguage(); App.ApplyTheme();
+            App.Settings.Save();
             var window = new MainWindow { ShowInTaskbar = false, ShowActivated = false,
                 WindowStartupLocation = WindowStartupLocation.Manual, Position = new PixelPoint(-20000, -20000) };
             window.Show();
@@ -579,17 +625,45 @@ public sealed partial class MainWindow : Window
                 using var output = File.Create(Path.Combine(folder, $"{language}-{theme}-{page}.png"));
                 image.Save(output, new PngBitmapEncoderOptions());
                 views++;
-                if (page == "train" && window._content.Content is ScrollViewer scroll)
+                if (page is "train" or "settings" && window._content.Content is ScrollViewer scroll)
                 {
                     scroll.Offset = new Vector(0, scroll.Extent.Height);
                     Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
                     using var lower = new RenderTargetBitmap(new PixelSize(1180, 820), new Vector(96, 96));
                     lower.Render(root);
-                    using var lowerOutput = File.Create(Path.Combine(folder, $"{language}-{theme}-train-decisions.png"));
+                    string suffix = page == "train" ? "train-decisions" : "settings-docs";
+                    using var lowerOutput = File.Create(Path.Combine(folder, $"{language}-{theme}-{suffix}.png"));
                     lower.Save(lowerOutput, new PngBitmapEncoderOptions());
                     views++;
                 }
             }
+            foreach (string choice in new[] { "en", "ru", "system" })
+            {
+                window.Navigate("settings"); Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
+                var selector = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "LanguageChoice");
+                selector.SelectedItem = selector.Items.Cast<ComboBoxItem>().Single(item => (string)item.Tag! == choice);
+                // Language changes rebuild the shell on the next normal UI turn. Pump the real
+                // dispatcher here; this render entrypoint otherwise blocks framework startup.
+                var frame = new DispatcherFrame();
+                var beat = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+                beat.Tick += (_, _) => { beat.Stop(); frame.Continue = false; };
+                beat.Start(); Dispatcher.UIThread.PushFrame(frame); window.UpdateLayout();
+                if (App.Settings.Language != choice || StudioSettings.Load().Language != choice)
+                    throw new InvalidOperationException("Language menu did not persist its choice");
+                string expected = App.Settings.EffectiveLanguage == "ru" ? "Настройки" : "Settings";
+                if (!window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == expected && t.FontSize == 29))
+                    throw new InvalidOperationException("Language menu did not rebuild page text: " + choice + " / " + App.Settings.EffectiveLanguage
+                        + " / " + string.Join("; ", window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.FontSize > 24).Select(t => t.Text + ":" + t.FontSize))
+                        + " logical=" + (((ScrollViewer)window._content.Content!).Content as StackPanel)!.Children.OfType<TextBlock>().First().Text);
+                languageChecks++;
+            }
+            using (var automatic = new RenderTargetBitmap(new PixelSize(1180, 820), new Vector(96, 96)))
+            {
+                automatic.Render((Control)window.Content!);
+                using var output = File.Create(Path.Combine(folder, $"{language}-{theme}-settings-system.png"));
+                automatic.Save(output, new PngBitmapEncoderOptions()); views++;
+            }
+            App.Settings.Language = language; App.ApplyLanguage();
             window.Width = 980; window.Height = 700; window.Navigate("home");
             var fixtures = new[]
             {
@@ -611,6 +685,6 @@ public sealed partial class MainWindow : Window
             }
             window.Close();
         }
-        File.WriteAllText(Path.Combine(folder, "ui-test.json"), JsonSerializer.Serialize(new { pass = true, views }));
+        File.WriteAllText(Path.Combine(folder, "ui-test.json"), JsonSerializer.Serialize(new { pass = true, views, language_menu_checks = languageChecks }));
     }
 }
