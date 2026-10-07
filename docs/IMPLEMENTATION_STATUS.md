@@ -1,5 +1,12 @@
 # Standalone completion work
 
+Deferred joint feature (PO, 2026-10-08): shared automatic initial map baseline,
+online server observations and Studio baseline build/import/refinement/export.
+See [the specification](ONLINE_BASELINE_SPEC.md). Implement the game-runtime
+integration only after q3t2 completion and delivery of 11.2; no next version
+number is assigned. This is a specification, not an implemented capability,
+and does not change the current application version or readiness claims.
+
 Owner: Bot Training Studio. No edits to OpenTDM-X game module or Claude's q3t2 lane.
 
 Requested scope: all application/model work independent of changing game DLL.
