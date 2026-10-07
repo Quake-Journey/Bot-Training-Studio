@@ -85,9 +85,10 @@ public sealed class StudioSettings
             var bundled = Path.Combine(AppContext.BaseDirectory, "runtime", "python.exe");
             result.Python = RuntimeSetup.FindManaged(Home, result.RuntimeBackend) ?? (File.Exists(bundled) ? bundled : "");
         }
-        if (result.Store.Length == 0) result.Store = Path.Combine(Home, "models", "motion");
-        if (result.TemporalStore.Length == 0) result.TemporalStore = Path.Combine(Home, "models", "sequences");
-        if (result.DecisionStore.Length == 0) result.DecisionStore = Path.Combine(Home, "models", "decisions");
+        // Keep every explicitly selected or legacy location. App updates never migrate user weights.
+        if (result.Store.Length == 0) result.Store = Path.Combine(Home, "UserModels", "motion");
+        if (result.TemporalStore.Length == 0) result.TemporalStore = Path.Combine(Home, "UserModels", "sequences");
+        if (result.DecisionStore.Length == 0) result.DecisionStore = Path.Combine(Home, "UserModels", "decisions");
         if (result.Project.Length == 0) result.Project = Path.Combine(Home, "projects", "new-map");
         return result;
     }

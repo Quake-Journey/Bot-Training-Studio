@@ -1,6 +1,6 @@
 # Bot Training Studio by ly
 
-User guide • English • Version 0.3.0-preview.3, development preview
+User guide • English • Version 0.3.0-preview.4, development preview
 
 Updated: 7 October 2026
 
@@ -28,7 +28,7 @@ The future game module will read validated data rather than run a neural network
 
 ## 2. Installation and interface settings
 
-The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**. Application and model libraries are included. Compatible installed Python or a complete Python 3.12+ environment is reused. Otherwise, the included Python 3.13 x64 can be installed offline (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
+The current desktop build targets Windows x64. Extract the whole folder: **worker**, **docs**, **libraries**, **Models**. Application and model libraries are included. Compatible installed Python or a complete Python 3.12+ environment is reused. Otherwise, the included Python 3.13 x64 can be installed offline (section 8). No manual library or CUDA Toolkit installation is needed. RAR requires WinRAR/UnRAR.
 
 CPU and NVIDIA CUDA have been tested. ROCm and Intel XPU code paths exist, but support for specific AMD/Intel GPUs has not yet been hardware-qualified. GPU profiles do not have a universal 4 GB VRAM limit. A larger profile requires more resources and does not by itself guarantee better quality.
 
@@ -61,6 +61,8 @@ Theme is selected on the same page: **dark**, **light** or **system**. Technical
 | Settings | Language, theme, Python installation and runtime selection. |
 
 <!-- page -->
+
+Hover over fields, buttons, settings or load indicators for explanatory tooltips in the selected interface language.
 
 ## 3. Map, recordings and project
 
@@ -110,6 +112,7 @@ In **Training**, list project folders, one per line. **Add current map** adds th
 ### Work modes
 
 - **Train new generation** — train from scratch in a new model folder.
+- **Start from factory model** — create a separate user overlay. Requires Compact or Balanced, 16 history frames, an empty donor and a new model folder.
 - **Update** — learn new material while replaying earlier experience and checking its retention.
 - **Resume** — continue an interrupted computation from a completed checkpoint, using compatible data and settings.
 
@@ -159,6 +162,14 @@ Compare the model against simple baselines, and inspect individual maps, rare ev
 
 **The current package cannot be installed on a game server.** Passing an integrity check means that the data can be read without corruption, not that a new map is ready for matches.
 
+### Factory bases and your overlays
+
+The **Models** folder beside the EXE contains factory Compact and Balanced experimental models trained on q2duel5 and ztn2dm3. These are observation models, not complete bot tactics. User training never changes their weights. Large/XL remain research architectures without bundled pretrained weights.
+
+**Start from factory model** pins a copy of the exact base in your **bases** folder and trains a separate **user-delta.safetensors** overlay. Export loads the base followed by the overlay. Incompatible schemas, profiles and contexts are rejected. A full snapshot is also retained for recovery. This is a full weight delta, not LoRA.
+
+Application updates preserve user generations. If a newer release ships a different factory model, existing overlays remain bound to their original base; new weights are not silently mixed in. Original factory recordings are not distributed, so learning on your recordings alone does not establish retention of all prior skills.
+
 ### Data locations
 
 The default settings and workspace root is:
@@ -167,7 +178,7 @@ The default settings and workspace root is:
 %LOCALAPPDATA%\QuakeJourney\BotTrainingStudio
 ```
 
-Settings are in **settings.json**. The main folders are **projects**, **datasets**, **models**, **jobs**, **exports** and **library**. Developers can override the root with **BTS_HOME** for isolated tests. Manually selected project and model folders stay in their selected locations.
+Settings are in **settings.json**. The main folders are **projects**, **datasets**, **UserModels**, **jobs**, **exports** and **library**. Developers can override the root with **BTS_HOME** for isolated tests. Manually selected project and model folders stay in their selected locations. Legacy **models** folders are preserved; **UserModels** is the default for new settings. Keep training outside application files.
 
 For recovery, preserve projects, original BSP files and recordings, model folders with history and checkpoints, settings and required exported packages. Publishing source on GitHub does not back up your local recordings or trained weights.
 
@@ -225,7 +236,7 @@ Installed Python lives in **runtimes** under the Studio data folder (section 6).
 
 ## 9. Version, change notes and updates
 
-The exact version appears in the window title and sidebar. **What's new** opens on the first launch of a new version; once acknowledged, it is not automatically repeated for that version. The **What's new** button in the sidebar and settings opens the history at any time, offline.
+The exact version appears in the window title and sidebar. **Version history** opens on the first launch of a new version and includes every release, including previously viewed versions. Scroll to reach earlier releases. Once acknowledged, it is not automatically repeated for that version. The **What's new** button in the sidebar and settings opens the full history at any time, offline.
 
 **Settings → Version and updates** enables automatic checks by default; you can turn them off. **Update** and **Check for updates** use published GitHub Releases. A preview build sees newer previews; drafts are excluded. A network failure does not mean the installed version is current.
 
@@ -234,3 +245,15 @@ Installation requires choosing **Update** rather than **Later**. Updates cannot 
 After checksum verification, the Studio closes, a separate helper replaces application files and restarts the new version. Ordinary replacement errors restore the previous files. Projects, models, settings and user files are preserved. Unchanged bundled libraries are verified and are not downloaded again. Replacing libraries requires additional free space; temporary **.updates** files are stored beside the application and successful downloads are cleaned after restart.
 
 For a first installation, download all **BotTrainingStudio-…-win-x64.part…rar** volumes into one folder and extract the first volume with a RAR-capable archiver. All libraries are included. Separate **app** and **libraries.zip.00…** assets are for the built-in updater; GitHub's automatically generated **Source code** archives are for developers. DOCX guides are also attached separately. A complete release can be extracted into a new folder; projects and settings are stored separately.
+
+<!-- page -->
+
+## 10. Natural-language training instructions
+
+This is a planned feature; this build does not contain a chat assistant. Current models consume gameplay observations rather than free-form text.
+
+A separate local language assistant is planned: describe a problem in Russian or English and optionally specify a demo and timestamp. It proposes a reviewable task: conditions, map or style scope, evidence to learn from and criteria for checking the result. You review whether it understood your instruction correctly.
+
+The Studio must then train a new user generation and check physical feasibility, mod compatibility and retention on previous maps. Text alone does not change model weights or add missing game DLL capabilities. Arbitrary scripts from model responses are not executed.
+
+Instructions, clarification history and results will be separate from factory data and preserved by updates. The language model runs only in the Studio; the game server still receives bounded validated data.

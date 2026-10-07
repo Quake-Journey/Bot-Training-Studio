@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -72,7 +73,14 @@ public sealed partial class MainWindow
             var first=FirstVersionStartAsync(); await Until(()=>_changesDialog?.GetVisualDescendants().OfType<Button>().Any(b=>b.Content?.ToString()=="Продолжить")==true);
             Check(_changesDialog!.Title!.ToString()!.Contains(AppVersion.Current),"First launch of new version displays its change notes");
             await Task.Delay(300); // Let the dialog's entrance animation finish before capture.
+            var historyScroll=_changesDialog.GetVisualDescendants().OfType<ScrollViewer>().Single(c=>c.Name=="VersionHistory");
+            string historyText=((TextBlock)historyScroll.Content!).Text!;
+            Check(AppVersion.History.All(n=>historyText.Contains(n.Version)),"First version launch includes every version, including already viewed releases");
+            Check(historyScroll.Extent.Height>historyScroll.Viewport.Height,"Full history really has scrollable content");
             Capture("first-version-notes-ru");
+            historyScroll.Offset=new Avalonia.Vector(0,historyScroll.Extent.Height);
+            await Task.Delay(100);Capture("first-version-history-end-ru");
+            Check(historyScroll.Offset.Y>0,"Earlier releases can be reached by scrolling");
             var continueButton=_changesDialog.GetVisualDescendants().OfType<Button>().Single(b=>b.Content?.ToString()=="Продолжить");
             continueButton.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent)); await first;
             Check(StudioSettings.Load().LastSeenVersion==AppVersion.Current,"Viewed version is saved after acknowledging change notes");
@@ -94,6 +102,19 @@ public sealed partial class MainWindow
                 Check(Compute().IsVisible,"Settings compute selector: "+language);
                 Check(this.GetVisualDescendants().OfType<CheckBox>().Any(c=>c.Name=="AutoUpdateCheck"),"Automatic update setting: "+language);
                 Capture("settings-"+language); Navigate("home"); await Task.Delay(100); Capture("home-"+language);
+                foreach(var page in new[]{"home","project","train","models","library","jobs","settings"})
+                {
+                    Navigate(page);await Task.Delay(35);
+                    foreach(var control in this.GetLogicalDescendants().OfType<Control>().Where(c=>c is Avalonia.Controls.Button or TextBox or CheckBox or ComboBox))
+                    {
+                        if (control is Button b && b.Content is not string) continue;
+                        string? tip=ToolTip.GetTip(control) switch { TextBlock t=>t.Text,string s=>s,_=>null };
+                        Check(!string.IsNullOrWhiteSpace(tip),$"Tooltip present: {language}/{page}/{control.GetType().Name}");
+                        Check(tip!=Help("unknown-item"),$"Tooltip is specific: {language}/{page}/{(control as ContentControl)?.Content}");
+                        Check(language=="ru" ? System.Text.RegularExpressions.Regex.IsMatch(tip!,"[А-Яа-я]") : !System.Text.RegularExpressions.Regex.IsMatch(tip!,"[А-Яа-я]"),$"Tooltip language: {language}/{page}");
+                    }
+                    if(page=="library")Capture("library-"+language);
+                }
             }
             var closingCheck=ShowStartupCheckAsync(async()=>await Task.Delay(30000,_lifetime.Token));
             await Until(()=>_startupDialog?.GetVisualDescendants().OfType<Button>().Any(b=>b.Content?.ToString()==L("Выйти","Quit"))==true);

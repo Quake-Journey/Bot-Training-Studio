@@ -35,10 +35,15 @@ internal sealed class LoadMeter : Border
         layout.Children.Add(head);
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*,*") };
         string[] labels = ["CPU", "RAM", "GPU", _l("Видеопамять", "Video memory")];
+        string[] hints = [_l("Общая загрузка всех логических ядер процессора компьютера.","Total load across all logical CPU cores."),
+            _l("Используемая и общая физическая оперативная память компьютера, в GiB.","Used and total physical system RAM in GiB."),
+            _l("Загрузка самой занятой аппаратной очереди выбранной видеокарты. Выбор устройства здесь не меняет обучение.","Load of the selected GPU's busiest hardware queue. This selector does not change training computation."),
+            _l("Используемая и доступная выделенная память выбранной видеокарты. Прочерк означает, что показания недоступны.","Used and available dedicated memory of the selected GPU. A dash means readings are unavailable.")];
         _rows = new (TextBlock, ProgressBar)[4];
         for (int i = 0; i < 4; i++)
         {
             var column = new StackPanel { Spacing = 3, Margin = new Thickness(i > 0 ? 12 : 0, 0, 0, 0) };
+            ToolTip.SetTip(column,hints[i]);
             column.Children.Add(new TextBlock { Text = labels[i], FontSize = 12, Opacity = .8 });
             var value = new TextBlock { Text = "—", FontSize = 13, FontWeight = FontWeight.SemiBold };
             var bar = new ProgressBar { Minimum = 0, Maximum = 100, Height = 6, MinHeight = 6,

@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.3.0-preview.4",
+    "date": "2026-10-07",
+    "ru": [
+      "Окно истории показывает все версии со скроллингом, в том числе при первом запуске обновлённой студии.",
+      "Комплектные экспериментальные модели Compact и Balanced для q2duel5 и ztn2dm3 находятся в Models рядом с программой. Пользовательское дообучение хранится отдельно и не перезаписывается обновлениями.",
+      "Добавлен запуск обучения от заводской основы: фиксируется её версия, сохраняются отдельные пользовательские дополнения весов. Экспорт читает основу и дополнение; несовместимые данные не смешиваются.",
+      "Настройки, поля, кнопки и индикаторы получили поясняющие подсказки на языке интерфейса. Обновлены руководства RU/EN и требования к будущему локальному помощнику для указаний обычным языком."
+    ],
+    "en": [
+      "Version history shows all releases with scrolling, including the first launch after an update.",
+      "Bundled Compact and Balanced experimental models for q2duel5 and ztn2dm3 are stored under Models beside the application. User training is stored separately and preserved by updates.",
+      "Training can start from a pinned factory base and save separate user weight overlays. Export loads the base and overlay; incompatible data is not silently mixed.",
+      "Settings, fields, actions and load indicators now have explanatory tooltips in the interface language. Updated RU/EN guides and requirements for a future local natural-language instruction assistant."
+    ]
+  },
+  {
     "version": "0.3.0-preview.3",
     "date": "2026-10-07",
     "ru": [

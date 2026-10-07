@@ -1,5 +1,12 @@
 # Bot Training Studio
 
+## 0.3.0-preview.4 — 2026-10-07
+
+- Version history shows all releases with scrolling, including the first launch after an update.
+- Bundled Compact and Balanced experimental models for q2duel5 and ztn2dm3 are stored under Models beside the application. User training is stored separately and preserved by updates.
+- Training can start from a pinned factory base and save separate user weight overlays. Export loads the base and overlay; incompatible data is not silently mixed.
+- Settings, fields, actions and load indicators now have explanatory tooltips in the interface language. Updated RU/EN guides and requirements for a future local natural-language instruction assistant.
+
 ## 0.3.0-preview.3 — 2026-10-07
 
 - Python 3.13 x64 is included in the complete package. If no ready environment is found, the startup dialog offers offline installation from the package without administrator access.

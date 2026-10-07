@@ -45,10 +45,13 @@ public sealed partial class MainWindow
             var content = Stack(12); content.MaxWidth = 650;
             if (firstStart && S.LastSeenVersion.Length > 0)
                 content.Children.Add(Text(L("Предыдущая просмотренная версия: ", "Previously viewed version: ") + S.LastSeenVersion, 13));
-            string history = AppVersion.HistoryText(S.EffectiveLanguage, firstStart ? S.LastSeenVersion : null);
-            if (history.Length == 0) history = AppVersion.HistoryText(S.EffectiveLanguage);
-            content.Children.Add(new ScrollViewer { MaxHeight = 420, Content = Text(history, 14) });
-            _changesDialog = new FAContentDialog { Title = L("Что нового в ", "What's new in ") + AppVersion.Current, Content = content,
+            string history = AppVersion.HistoryText(S.EffectiveLanguage);
+            var historyBody = Text(history,14); historyBody.Margin = new Avalonia.Thickness(0,0,18,0);
+            content.Children.Add(new ScrollViewer { Name = "VersionHistory", MaxHeight = 420,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = historyBody });
+            _changesDialog = new FAContentDialog { Title = L("История версий · ", "Version history · ") + AppVersion.Current, Content = content,
                 CloseButtonText = L("Продолжить", "Continue"), DefaultButton = FAContentDialogButton.Close };
             await _changesDialog.ShowAsync(this);
             if (!_lifetime.IsCancellationRequested) { S.LastSeenVersion = AppVersion.Current; S.Save(); }

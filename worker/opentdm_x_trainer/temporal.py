@@ -16,7 +16,7 @@ WIDTH = len(CONTINUOUS)
 WEAPON_END = WIDTH + len(WEAPONS)
 LANDMARK_END = WEAPON_END + len(LANDMARKS) + 1
 OUTPUTS = LANDMARK_END + len(EVENTS)
-SOURCE_HASHES = {name:sha(Path(__file__).with_name(name)) for name in ('temporal.py','sequences.py','models.py')}
+SOURCE_HASHES = {name:sha(Path(__file__).with_name(name)) for name in ('temporal.py','sequences.py','models.py','model_layers.py')}
 
 
 def replay(old, new, cap=6000):
@@ -297,39 +297,51 @@ def restore_checkpoint(root, model, optimizer):
 
 
 def train(dataset, store, profile="compact", backend="cpu", mode="fresh", epochs=20,
-          batch_size=64, event=None, cancelled=None):
+          batch_size=64, event=None, cancelled=None, factory_catalog=None):
     import torch
     from safetensors.torch import load_file, save_file
-    if mode not in ("fresh","update","resume") or not 1<=epochs<=200 or profile=="reference":
+    if mode not in ("fresh","factory","update","resume") or not 1<=epochs<=200 or profile=="reference":
         raise ValueError("Invalid temporal training mode/profile/epoch count")
     if not 1<=batch_size<=1024: raise ValueError("Batch size must be 1..1024")
     torch.set_num_threads(4); torch.manual_seed(23)
     root=Path(store); data,meta=load(dataset)
     if meta["context"]>PROFILES[profile].context: raise ValueError("Dataset history exceeds model context")
+    from . import model_layers
+    if factory_catalog and model_layers.inside(root, factory_catalog):
+        raise ValueError('User training cannot write into factory Models')
     with writer_lock(root):
         device,name=device_for(backend)
         model=create(profile,len(INPUTS),OUTPUTS).to(device)
         model.activation_checkpointing=profile in ("large","xl")
         optimizer=torch.optim.AdamW(model.parameters(),lr=.0003,foreach=False)
-        parent=None; old=None; previous=None
+        parent=None; old=None; previous=None; factory_base=None
+        if mode=="factory":
+            if (root/'active.json').exists() or (root/'work/resume.json').exists():
+                raise ValueError('Factory training requires a new user model folder; update or resume existing work')
+            if not factory_catalog: raise ValueError('Factory catalog is missing')
+            factory_base=model_layers.bind(factory_catalog,root,profile,meta['context'],meta['donor'])
+            model.load_state_dict(model_layers.base_weights(root,factory_base))
         if mode=="update":
             folder,parentmeta=active(root)
             if any(parentmeta.get(k)!=v for k,v in dict(profile=profile,context=meta["context"],donor=meta["donor"]).items()):
                 raise ValueError("Cannot update across family/history/donor; use fresh store")
-            model.load_state_dict(load_file(str(folder/"weights.safetensors")))
+            model.load_state_dict(model_layers.load_effective(root,folder,parentmeta))
+            factory_base=parentmeta.get('factory_base')
             with np.load(folder/"replay.npz",allow_pickle=False) as f: old={k:f[k] for k in f.files}
             previous=evaluate(model,old,device,"validation");parent=folder.name
         work=root/"work";work.mkdir(exist_ok=True)
         rng=np.random.default_rng(23)
         state=dict(profile=profile,context=meta["context"],feature_version=VERSION,donor=meta["donor"],
             dataset_sha256=meta["samples_sha256"],epoch=0,history=[],best_loss=None,best_checkpoint=None,
-            rng=rng.bit_generator.state,parent=parent,previous=previous,batch_size=batch_size)
+            rng=rng.bit_generator.state,parent=parent,previous=previous,batch_size=batch_size,factory_base=factory_base)
         if mode=="resume":
             state=restore_checkpoint(work,model,optimizer)
             if any(state.get(k)!=v for k,v in dict(feature_version=VERSION,profile=profile,context=meta["context"],donor=meta["donor"],dataset_sha256=meta["samples_sha256"]).items()):
                 raise ValueError("Resume dataset/profile mismatch")
             with np.load(work/"replay.npz",allow_pickle=False) as f: data={k:f[k] for k in f.files}
             rng.bit_generator.state=state["rng"];batch_size=state["batch_size"];parent=state["parent"];previous=state["previous"]
+            factory_base=state.get('factory_base')
+            if factory_base: model_layers.base_weights(root,factory_base)
             if parent:
                 folder,_=active(root)
                 if folder.name!=parent: raise ValueError("Active parent changed since interrupted training")
@@ -411,6 +423,7 @@ def train(dataset, store, profile="compact", backend="cpu", mode="fresh", epochs
         if retained:failures.extend(retention_failures(previous,retained))
         generation="generation-"+uuid.uuid4().hex;folder=root/generation;folder.mkdir()
         save_file({k:v.detach().cpu().contiguous() for k,v in model.state_dict().items()},str(folder/"weights.safetensors"))
+        overlay_hash=model_layers.save_overlay(root,folder,model,factory_base) if factory_base else None
         np.savez_compressed(folder/"replay.npz",**data)
         manifest=dict(schema=1,feature_version=VERSION,profile=profile,context=meta["context"],donor=meta["donor"],
             source_sha256=SOURCE_HASHES,
@@ -419,10 +432,14 @@ def train(dataset, store, profile="compact", backend="cpu", mode="fresh", epochs
             history=state["history"],backend=backend,device=str(device),accepted=not failures,failures=failures,
             dataset=meta,seconds=time.monotonic()-start,may_activate_in_game=False,
             qualified_observation_heads=qualify_heads(validation),
-            files={f:sha(folder/f) for f in ("weights.safetensors","replay.npz")})
+            files={f:sha(folder/f) for f in ("weights.safetensors","replay.npz")},factory_base=factory_base)
+        if overlay_hash:
+            manifest['files']['user-delta.safetensors']=overlay_hash
+            manifest['factory_retention_qualified']=False
+            manifest['factory_retention_note']='Factory recordings are not distributed; user validation is not proof of retention on all factory matches'
         atomic_json(folder/"manifest.json",manifest)
         if cancelled and cancelled(): raise InterruptedError("Paused before activation; previous model preserved")
         if not failures: atomic_json(root/"active.json",dict(generation=generation,scope="offline_temporal_only"))
         return dict(generation=generation,accepted=not failures,failures=failures,validation=validation,test=test,
                     profile=profile,context=meta["context"],epochs=state["epoch"],runtime_qualified=False,
-                    qualified_observation_heads=qualify_heads(validation))
+                    qualified_observation_heads=qualify_heads(validation),factory_base=factory_base)

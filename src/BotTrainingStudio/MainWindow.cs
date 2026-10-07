@@ -57,6 +57,8 @@ public sealed partial class MainWindow : Window
             _resourceTimer.Start(); _eventTimer.Start();
             if (_checkRuntime)
             {
+                try { await Task.Run(() => FactoryModels.Ensure()); }
+                catch (Exception error) { AppendLog(L("Не удалось подготовить заводские модели: ", "Could not prepare factory models: ") + error.Message); }
                 await ShowStartupCheckAsync(RefreshRuntimeAsync);
                 if (!_lifetime.IsCancellationRequested) await FirstVersionStartAsync();
             }
@@ -140,7 +142,7 @@ public sealed partial class MainWindow : Window
     {
         var b = new Button { Content = text, Padding = new Thickness(18, 10), CornerRadius = new CornerRadius(6) };
         if (primary) { b.Background = new SolidColorBrush(Color.Parse("#6356d9")); b.Foreground = Brushes.White; }
-        ToolTip.SetTip(b, text);
+        Tip(b, Help(text));
         b.Click += (_, _) => action();
         if (job) { b.IsEnabled = !JobActive && !_exitPromptOpen && !_exitAfterJob; _jobButtons.Add(b); }
         return b;
@@ -177,6 +179,8 @@ public sealed partial class MainWindow : Window
         var bottom = new StackPanel { Spacing = 8, Margin = new Thickness(32, 8, 32, 18) };
         bottom.Children.Add(_status); bottom.Children.Add(_progress);
         _stay.Content = L("Остаться в программе после остановки", "Stay in the application after stopping");
+        Tip(_log,L("Журнал текущего задания: последние сообщения и причины ошибок. Полный журнал хранится в папке задания.",
+            "Current job log: recent messages and failure details. The complete log is stored in the job folder."));
         bottom.Children.Add(_stay);
         string? selectedGpu = _meter?.SelectedGpu;
         _meter = new LoadMeter(L, Light);
@@ -186,6 +190,7 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(outer, 1); shell.Children.Add(outer);
         Content = shell;
         ShowPage();
+        ApplyHelp(shell);
     }
     private void Navigate(string page) { _page = page; BuildShell(); }
     private void ShowPage()
@@ -203,6 +208,7 @@ public sealed partial class MainWindow : Window
             default: Home(panel); break;
         }
         _content.Content = new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        ApplyHelp(panel);
     }
     private void Header(StackPanel p, string title, string subtitle)
     {
@@ -233,6 +239,8 @@ public sealed partial class MainWindow : Window
     private ComboBox Choice(string[] values, string selected, Action<string> update)
     {
         var box = new ComboBox { ItemsSource = values, SelectedItem = selected, MinWidth = 190 };
+        if (values.Contains("compact")) Tip(box,L("Размер архитектуры модели: compact, balanced, large или xl. Это разные совместимые семейства весов, а не предел используемой VRAM. Заводские веса доступны для compact и balanced.",
+            "Model architecture: compact, balanced, large or xl. These are separate weight families, not a VRAM ceiling. Factory weights are available for compact and balanced."));
         box.SelectionChanged += (_, _) => { if (box.SelectedItem is string v && v != selected) { selected = v; update(v); S.Save(); } };
         return box;
     }
@@ -272,6 +280,7 @@ public sealed partial class MainWindow : Window
         sequence.Children.Add(Button(L("Подобрать размер пакета по памяти и скорости", "Measure batch size for memory and throughput"), () => Start("calibrate"), job: true));
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         actions.Children.Add(Button(L("Обучить новое поколение", "Train new generation"), () => Start("train_sequences", "fresh"), true, true));
+        sequence.Children.Add(Button(L("Начать от заводской модели", "Start from factory model"), () => Start("train_sequences", "factory"), job: true));
         actions.Children.Add(Button(L("Дообучить", "Update"), () => Start("train_sequences", "update"), job: true));
         actions.Children.Add(Button(L("Возобновить", "Resume"), () => Start("train_sequences", "resume"), job: true));
         sequence.Children.Add(actions);
@@ -343,8 +352,20 @@ public sealed partial class MainWindow : Window
     private void Library(StackPanel p)
     {
         Header(p, L("Библиотека обучения", "Learning library"), L("Модель, история и проверенные результаты хранятся отдельно от игровых файлов.", "Models, history and verification results are separate from game files."));
-        var c = Stack(12); c.Children.Add(Text(L("Текущая модель", "Current model"), 19, true)); c.Children.Add(Text(S.TemporalStore));
-        c.Children.Add(Button(L("Проверить и открыть результат", "Verify and view result"), () => Start("sequence_status"), true, true));
+        var factory = Stack(12);
+        factory.Children.Add(Text(L("Заводские модели", "Factory models"),19,true));
+        factory.Children.Add(Text(FactoryModels.DirectoryPath));
+        factory.Children.Add(Text(FactoryModels.Summary(S.EffectiveLanguage)));
+        factory.Children.Add(Button(L("Проверить заводские модели", "Verify factory models"), () => Start("factory_status"), job:true));
+        factory.Children.Add(Text(L("Комплектные веса для наблюдательных экспериментов на q2duel5 и ztn2dm3. Полноценная игровая тактика ещё не готова. Обучение не меняет эту основу.",
+            "Bundled weights for observation experiments on q2duel5 and ztn2dm3. Full gameplay tactics are not ready. Training does not modify this base.")));
+        p.Children.Add(Card(factory));
+        var c = Stack(12); c.Children.Add(Text(L("Пользовательская модель и дополнения", "User model and overlays"), 19, true)); c.Children.Add(Text(S.TemporalStore));
+        c.Children.Add(Text(File.Exists(Path.Combine(S.TemporalStore,"active.json"))
+            ? L("Есть сохранённое поколение. Проверь его целостность и результаты кнопкой ниже.","A saved generation exists. Verify its integrity and results below.")
+            : L("Принятого пользовательского поколения в этой папке пока нет.","No accepted user generation exists in this folder yet.")));
+        var viewResult = Button(L("Проверить и открыть результат", "Verify and view result"), () => Start("sequence_status"), true, true);
+        viewResult.IsEnabled &= File.Exists(Path.Combine(S.TemporalStore,"active.json")); c.Children.Add(viewResult);
         c.Children.Add(Text(L("Экспериментальные поколения моделей и пакеты карты сохраняются отдельно от файлов мода.", "Experimental model generations and map packages are separate from mod files.")));
         p.Children.Add(Card(c));
         var pack = Stack(12);
@@ -358,6 +379,7 @@ public sealed partial class MainWindow : Window
         includeChat.IsCheckedChanged += (_, _) => { S.IncludeChat = includeChat.IsChecked == true; S.Save(); };
         pack.Children.Add(includeChat);
         pack.Children.Add(Button(L("Собрать пакет карты", "Compile map package"), () => Start("compile_package"), true, true));
+        pack.Children.Add(Text(L("Файл пакета", "Package file")));
         pack.Children.Add(PathRow(S.Package, v => { S.Package = v; S.Save(); }, true));
         pack.Children.Add(Button(L("Проверить пакет", "Verify package"), () => Start("verify_package"), job: true));
         pack.Children.Add(Button(L("Добавить в библиотеку студии", "Add to Studio library"), () => Start("install_offline"), job: true));
@@ -489,6 +511,12 @@ public sealed partial class MainWindow : Window
         foreach (var b in _jobButtons) b.IsEnabled = false;
         try
         {
+            if (action is "train" or "train_sequences" or "train_decisions" or "import_project")
+            {
+                string destination = action == "import_project" ? S.Project : action == "train_sequences" ? S.TemporalStore : action == "train_decisions" ? S.DecisionStore : S.Store;
+                if (FactoryModels.IsApplicationPath(destination)) throw new InvalidOperationException(L("Выбери пользовательскую папку вне файлов программы. Заводские Models изменять нельзя.",
+                    "Select a user folder outside application files. Factory Models cannot be modified."));
+            }
             if (_checkRuntime && (_runtimeProbe?.Ready != true || _runtimeProbePath != S.Python))
             {
                 await RefreshRuntimeAsync();
@@ -501,6 +529,7 @@ public sealed partial class MainWindow : Window
                 ["batch_size"] = S.BatchSize,
                 ["donor"] = S.Donor, ["context"] = S.Context, ["limit"] = S.SampleLimit, ["knowledge"] = S.Knowledge, ["package"] = S.Package,
                 ["library"] = Path.Combine(StudioSettings.Home, "library") };
+            request["factory_catalog"] = FactoryModels.DirectoryPath;
             if (action is "prepare_sequences" or "prepare_decisions") request["dataset"] = Path.Combine(StudioSettings.Home, "datasets", Guid.NewGuid().ToString("N"));
             if (action is "train_sequences" or "sequence_status" or "calibrate") { request["dataset"] = S.SequenceDataset; request["store"] = S.TemporalStore; request["profile"] = S.Profile == "reference" ? "compact" : S.Profile; }
             if (action is "train_decisions" or "calibrate_decisions") { request["dataset"] = S.DecisionDataset; request["store"] = S.DecisionStore; request["profile"] = S.Profile == "reference" ? "compact" : S.Profile; request["batch_size"] = S.DecisionBatchSize; }
@@ -580,7 +609,7 @@ public sealed partial class MainWindow : Window
                 "This predicts recorded actions, not bot victories. Details are saved in the job folder. Game installation is not available yet."));
             return string.Join("\n", decisionLines);
         }
-        if (action is "import_project" or "analyze_project" or "prepare_sequences" or "prepare_decisions" or "train_decisions" or "compile_package" or "verify_package" or "install_offline" or "train_sequences" or "inventory" or "sequence_status" or "fit_movement" or "calibrate" or "calibrate_decisions")
+        if (action is "factory_status" or "import_project" or "analyze_project" or "prepare_sequences" or "prepare_decisions" or "train_decisions" or "compile_package" or "verify_package" or "install_offline" or "train_sequences" or "inventory" or "sequence_status" or "fit_movement" or "calibrate" or "calibrate_decisions")
             return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
         if (action == "hardware")
             return string.Join("\n", result.GetProperty("devices").EnumerateArray().Select(d => d.GetProperty("name").GetString()))

@@ -114,7 +114,14 @@ local runnable copies. These build-tool defaults do not change the application v
 the smaller application ZIP, checksummed library ZIP parts, updater manifest,
 paired DOCX attachments and SHA256SUMS. Library parts can be prepared first with
 `--libraries-only`; a matching verified local receipt permits reuse. The pinned official Python archive belongs in `worker/runtime/`; personal settings,
-recordings and trained models do not belong in this package. Run
+recordings and user-trained models do not belong in this package. Factory weights
+are the explicit exception: only files pinned by `packaging/factory-models.lock.json`
+may be distributed. Keep replay and checkpoints private. The full RAR contains
+`Models/` beside the EXE. The app ZIP transports the same verified files under
+`worker/factory-models/` for compatibility with previously published updaters;
+the new application materializes `Models/` on first launch, without touching user
+stores. Existing user overlays retain their pinned bases, not the newest factory
+weights. Run
 `scripts/fetch_python_embed.py` at build time before `build_preview.ps1`.
 
 `scripts/publish_release.py --assets <release-assets.json> --notes <release-body.md>`

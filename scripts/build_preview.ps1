@@ -51,6 +51,26 @@ foreach ($file in @('decoder.exe','physics.dll')) {
     Copy-Item -LiteralPath $nativeSource -Destination $nativeOutput -Force
 }
 Copy-Item -LiteralPath (Join-Path $repoRoot 'worker\requirements.txt') -Destination (Join-Path $Output 'worker') -Force
+$factorySource = Join-Path $repoRoot 'local\factory-models'
+$factoryLock = Join-Path $repoRoot 'packaging\factory-models.lock.json'
+if (Test-Path -LiteralPath $factoryLock) {
+    if (!(Test-Path -LiteralPath (Join-Path $factorySource 'catalog.json'))) { throw 'Prepare the locked factory weights before building this release' }
+    if ((Get-FileHash -LiteralPath (Join-Path $factorySource 'catalog.json')).Hash -ne (Get-FileHash -LiteralPath $factoryLock).Hash) { throw 'Factory catalog differs from release lock' }
+    $factoryCatalog = Get-Content -LiteralPath $factoryLock -Raw | ConvertFrom-Json
+    foreach ($factoryTarget in @((Join-Path $Output 'Models'), (Join-Path $Output 'worker\factory-models'))) {
+        New-Item -ItemType Directory -Force -Path $factoryTarget | Out-Null
+        foreach ($entry in $factoryCatalog.models) {
+            $modelTarget = Join-Path $factoryTarget $entry.id
+            New-Item -ItemType Directory -Force -Path $modelTarget | Out-Null
+            foreach ($pair in @(@('model.json', $entry.metadata_sha256), @('weights.safetensors', $entry.weights_sha256))) {
+                $modelSource = Join-Path (Join-Path $factorySource $entry.id) $pair[0]
+                if ((Get-FileHash -LiteralPath $modelSource).Hash -ne $pair[1]) { throw 'Factory file checksum mismatch' }
+                Copy-Item -LiteralPath $modelSource -Destination $modelTarget -Force
+            }
+        }
+        Copy-Item -LiteralPath (Join-Path $factorySource 'catalog.json') -Destination $factoryTarget -Force
+    }
+}
 foreach ($file in @('README.md','LICENSE')) { Copy-Item -LiteralPath (Join-Path $repoRoot $file) -Destination $Output -Force }
 $docOutput = Join-Path $Output 'docs'
 New-Item -ItemType Directory -Force -Path $docOutput | Out-Null

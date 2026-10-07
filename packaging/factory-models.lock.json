@@ -1,0 +1,28 @@
+{
+  "schema": "bts-factory-models-v1",
+  "game_installable": false,
+  "models": [
+    {
+      "id": "compact-238940ce2b8d435f77cc57b9",
+      "profile": "compact",
+      "context": 16,
+      "maps": [
+        "q2duel5",
+        "ztn2dm3"
+      ],
+      "metadata_sha256": "0d142a2fd9ba6934de3ee442371e2fac919fccc94bbf749ad9e46180ce104264",
+      "weights_sha256": "238940ce2b8d435f77cc57b9e01672456ec8654754d67bbd4242b4044943e6e4"
+    },
+    {
+      "id": "balanced-b3b687fcaa1cd43c6802ebc7",
+      "profile": "balanced",
+      "context": 16,
+      "maps": [
+        "q2duel5",
+        "ztn2dm3"
+      ],
+      "metadata_sha256": "489d15968c27321b6bcbd2c166544c2af3833da8dec8d42e601084888649f69a",
+      "weights_sha256": "b3b687fcaa1cd43c6802ebc73f66304ccd2478403681e6d57acc1f31ed72395a"
+    }
+  ]
+}

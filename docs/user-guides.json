@@ -1,21 +1,21 @@
 {
   "schema": 1,
-  "version": "0.3.0-preview.3",
+  "version": "0.3.0-preview.4",
   "builder_sha256": "fad53f869e9339eac271c4d7353168a506fb479b7da2d07ef950d7c3a0b6891a",
   "guides": [
     {
       "language": "RU",
       "source": "USER_GUIDE_RU.md",
-      "source_sha256": "3fbdbc8ecda311d7978ef35a7beb0ed8613c3818ad4a899c54352f51f8111e1e",
+      "source_sha256": "229aa0b261308d71439371d383607cd3969c7d78b4897aba773acac62cdacf96",
       "file": "Bot_Training_Studio_User_Guide_RU.docx",
-      "sha256": "6b3a7d7f6c5ffaf2a0b5f8d1f552b3035b277274cb99439fa6271d6da0329cc2"
+      "sha256": "78962f5dfe2e7b14f83d0bb1a7014b91b6bb13e5de1587bc19134c68a5ecdf29"
     },
     {
       "language": "EN",
       "source": "USER_GUIDE_EN.md",
-      "source_sha256": "23fe9a0850694bef4d1e9c82a9f81e27c003f11b17ca64aeda249ddbd11dd5ea",
+      "source_sha256": "796d1e1be8dbd0cdb3287edd0957b8ea3fd0d51aec3e728a7e76e41f5dbb85ef",
       "file": "Bot_Training_Studio_User_Guide_EN.docx",
-      "sha256": "065bb713d5e1cea54cf7c86697fa920112f9742e6e9c7d7f4a0477bf330d8a8c"
+      "sha256": "51a7e4a8275b5a8dc2ee7d23368883b1abba68d2417ceba840984567c859949e"
     }
   ]
 }

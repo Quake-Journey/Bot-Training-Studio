@@ -96,6 +96,11 @@ def run(request_path):
             options=dict(profile=request.get("profile","compact"),backend=backend,
                 mode=request.get("mode","fresh"),epochs=int(request.get("epochs",20)),batch_size=int(request.get("batch_size",64)),
                 event=lambda row:emit("progress",**row),cancelled=cancelled)
+            if request.get('factory_catalog'):
+                from .model_layers import inside
+                if inside(request['store'],request['factory_catalog']):
+                    raise ValueError('User training cannot write into factory Models')
+                if action=='train_sequences': options['factory_catalog']=request['factory_catalog']
             try:
                 result=train(request["dataset"],request["store"],**options)
             except (torch.OutOfMemoryError, RuntimeError) as error:
@@ -105,11 +110,16 @@ def run(request_path):
                 options['backend']='cpu'
                 if (Path(request['store'])/'work/resume.json').exists():options['mode']='resume'
                 result=train(request["dataset"],request["store"],**options)
+        elif action == 'factory_status':
+            from .model_layers import catalog
+            doc=catalog(request['factory_catalog'])
+            result=dict(integrity_valid=True,scope='offline_observation_only',game_installable=False,
+                models=[dict(profile=row['profile'],maps=row['maps'],context=row['context']) for row in doc['models']])
         elif action == "sequence_status":
             from .temporal import active
             folder,meta=active(request["store"])
             result=dict(generation=folder.name,validation=meta["validation"],test=meta["test"],
-                profile=meta["profile"],context=meta["context"],runtime_qualified=False)
+                profile=meta["profile"],context=meta["context"],factory_base=meta.get('factory_base'),runtime_qualified=False)
         elif action == "compile_package":
             from .packages import compile
             result=compile(request["project"],request["knowledge"],request["output"],request.get("model_store") or None,

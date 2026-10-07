@@ -16,6 +16,8 @@ public sealed partial class MainWindow
         };
         var choice = new ComboBox { Name = "ComputeChoice", ItemsSource = options, MinWidth = 280,
             SelectedItem = options.FirstOrDefault(o => (string)o.Tag! == S.Backend) ?? options[0], IsEnabled = !JobActive };
+        Tip(choice,L("Устройство следующего задания. Автоматически — доступная GPU, иначе CPU. NVIDIA поддерживается комплектом; AMD/Intel экспериментальны. Нижняя панель GPU выбирает только мониторинг.",
+            "Device for the next job. Automatic uses an available GPU, otherwise CPU. NVIDIA is bundled; AMD/Intel are experimental. The bottom GPU panel selects monitoring only."));
         choice.SelectionChanged += (_, _) =>
         {
             if (choice.SelectedItem is ComboBoxItem { Tag: string backend } && !JobActive)

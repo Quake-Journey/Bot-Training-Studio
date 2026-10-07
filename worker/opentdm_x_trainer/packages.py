@@ -84,7 +84,8 @@ def compile(project, knowledge, output, model_store=None, include_chat=False):
         if meta.get("donor") != style.get("donor"):
             raise ValueError("Model and style donor differ; select matching evidence")
         model=create(meta["profile"],len(INPUTS),temporal.OUTPUTS)
-        model.load_state_dict(load_file(str(folder/"weights.safetensors")))
+        from .model_layers import load_effective
+        model.load_state_dict(load_effective(model_store,folder,meta))
         with np.load(folder/"replay.npz",allow_pickle=False) as arrays:
             data={key:arrays[key] for key in arrays.files}
         teacher=temporal.predict(model,data["train_x"],torch.device("cpu"))
@@ -110,7 +111,8 @@ def compile(project, knowledge, output, model_store=None, include_chat=False):
         validation.update(model_generation=folder.name,model_validation=meta["validation"],
             distillation_rmse=float(np.sqrt(np.mean((student-original)**2))),
             qualified_observation_heads=qualified,
-            policy_scope="offline observation prior",model_sha256=sha(folder/"weights.safetensors"))
+            policy_scope="offline observation prior",model_sha256=sha(folder/"weights.safetensors"),
+            factory_base=meta.get('factory_base'),user_overlay_sha256=meta['files'].get('user-delta.safetensors'))
     docs={"map.json":world,"routes.json":{k:report[k] for k in ("nodes","links","items","control_candidates")},
           "style.json":style,"policy.json":policy,"validation.json":validation}
     blobs={name:encode(value) for name,value in docs.items()}

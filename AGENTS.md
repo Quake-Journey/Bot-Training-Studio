@@ -35,6 +35,13 @@ directory for each new version; do not create version-named runnable directories
 Keep only the current release archives in dist/packages. Published historical
 versions remain in GitHub Releases. Preserve user data outside distribution files.
 Development-only output must be explicitly requested with -DevelopmentOnly.
+Factory weights belong under the installed Models folder and are immutable to
+training. Keep user overlays, replay, checkpoints and a pinned copy of their
+exact base outside the application. Never silently rebase them onto newer
+factory weights. See docs/MODEL_LAYERS_AND_INSTRUCTIONS_RU.md. Package only the
+hash-locked factory weights; never publish replay recordings or private projects.
+Every actionable field/control needs an explanatory RU/EN tooltip; repeating
+the label is not sufficient. First-launch and manual history show all releases.
 
 UI: RU/EN, light/dark/system themes, responsive background jobs, useful progress,
 recoverable errors and bounded storage. Settings live outside tracked source.
