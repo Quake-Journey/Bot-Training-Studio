@@ -86,13 +86,12 @@ def materialize(row, scratch):
 
 def import_project(bsp, inputs, project, mode="update", event=None, cancelled=None, selected=None):
     from bts_analysis.analyzer import decode, TableWriter
-    from bts_analysis.combat import Collision, SCHEMA, SHOT_SCHEMA, prepare_record
+    from bts_analysis.combat import Collision, SCHEMA, SHOT_SCHEMA, prepare_record, OBSERVATION_VERSION
     from bts_analysis.group_duels import groups
     if mode not in ("fresh", "update"):
         raise ValueError("Choose fresh or update")
     project = Path(project).resolve()
     bsp = Path(bsp).resolve(strict=True)
-    world = inspect(bsp)
     tools = native_home()
     decoder = tools / ("decoder.exe" if os.name == "nt" else "decoder")
     physics = tools / ("physics.dll" if os.name == "nt" else "physics.so")
@@ -104,6 +103,7 @@ def import_project(bsp, inputs, project, mode="update", event=None, cancelled=No
             event(fields)
     with writer_lock(project):
         old = json.loads((project / "project.json").read_text()) if (project / "project.json").exists() else None
+        world = inspect(bsp, old['map'] if old and bsp == project / 'map.bsp' else None)
         if old and old["bsp_sha256"] != world["bsp_sha256"]:
             raise ValueError("BSP differs from this project; create another project")
         recordings = {r["recording_id"]: r for r in old.get("recordings", [])} if old and mode == "update" else {}
@@ -158,7 +158,8 @@ def import_project(bsp, inputs, project, mode="update", event=None, cancelled=No
                 prepare_record(Path(row["path"]), row["recording_id"], world["map"], collision, contexts, shots, counts, samples)
         finally:
             contexts.close(); shots.close(); collision.close()
-        atomic_json(out / "summary.json", dict(schema=1, source_run=revision, counts=dict(counts), bsp_sha256=world["bsp_sha256"]))
+        atomic_json(out / "summary.json", dict(schema=1, source_run=revision, counts=dict(counts), bsp_sha256=world["bsp_sha256"],
+            observation_version=OBSERVATION_VERSION, transform_sha256=sha(Path(__file__).resolve().parents[1] / 'bts_analysis' / 'combat.py')))
         report(stage="committing", progress=.98)
         result = dict(schema=1, map=world["map"], bsp_sha256=world["bsp_sha256"], active_revision=revision,
                       recordings=list(recordings.values()), counts=dict(counts), groups=dict(group_counts), issues=issues,

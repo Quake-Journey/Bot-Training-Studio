@@ -35,3 +35,10 @@ only afterwards evaluate/adapt q2duel1 with retention checks. Both q3t2 and
 q2duel1 are excluded from current training; do not bypass this sequencing.
 q2duel1 source archives: demos.q2players.org.zip and EDL.zip (user-local corpus;
 never upload the recordings with public source).
+
+2026-10-07 continuation: docs/VALIDATION_OUTCOMES_RU.md records terminal-aware
+v3 observations, per-target masks, observed ammo/shot history, outcome heads,
+conditional training-only donor evidence, five grouped folds and real sequential
+map training. These finish a data/model milestone, NOT the entire checklist.
+Weapon decisions, exact resource targets, full tactical policies, full trick
+recovery and gameplay qualification remain open. No game DLL changes.

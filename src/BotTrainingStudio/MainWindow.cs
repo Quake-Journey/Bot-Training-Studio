@@ -152,7 +152,7 @@ public sealed class MainWindow : Window
     private void Training(StackPanel p)
     {
         Header(p, L("Обучение по истории игры", "Learn from gameplay history"),
-            L("Движение, оружие и ресурсные цели. Проверка на отдельных матчах.", "Movement, weapons and resource destinations. Independent match validation."));
+            L("Движение, оружие, изменения стека и исходы эпизодов. Проверка на отдельных матчах.", "Movement, weapons, resource changes and episode outcomes. Independent match validation."));
         var sequence = Stack(12);
         sequence.Children.Add(Text(L("Проекты карт — по одному пути в строке", "Map projects — one folder per line")));
         var projects = new TextBox { AcceptsReturn = true, MinHeight = 70, Text = string.Join("\n", S.Projects) };
@@ -178,6 +178,8 @@ public sealed class MainWindow : Window
         sequence.Children.Add(actions);
         sequence.Children.Add(Text(L("Отмена сохраняет завершённую эпоху. Новое поколение не стирает предыдущее. Подготовка требует независимых матчей для обучения и проверки.",
             "Cancellation preserves the completed epoch. New generations preserve previous ones. Preparation requires independent training and evaluation matches.")));
+        sequence.Children.Add(Text(L("Качество каждого прогноза проверяется отдельно. Для проектов прежней версии повтори импорт и подготовку данных; старую модель сохрани в отдельной папке.",
+            "Each prediction is evaluated separately. Re-import older projects and prepare their data again; preserve the old model in a separate folder.")));
         p.Children.Add(Card(sequence));
     }
     private void LegacyTraining(StackPanel p)

@@ -34,6 +34,8 @@ def sequence_fixture(root):
         x=rng.normal(0,.01,(n,4,len(sequences.INPUTS))).astype(np.float32)
         x[:,:,:3]=1.;x[:,:,15:26]=0;x[:,:,15]=1
         fields=dict(x=x,y=np.zeros((n,8),np.float32),weapon=np.zeros(n,np.int64),
+            y_mask=np.ones((n,8),np.float32),events=np.zeros((n,len(sequences.EVENTS)),np.float32),
+            event_mask=np.ones((n,len(sequences.EVENTS)),np.float32),
             landmark=np.zeros(n,np.int64),identity=np.asarray([split+str(i) for i in range(n)]),
             group=np.asarray([split]*n),map=np.asarray(['fixture']*n),recording=np.asarray([split]*n))
         data.update({split+'_'+key:value for key,value in fields.items()})
@@ -100,7 +102,9 @@ class PipelineTests(unittest.TestCase):
         metrics=dict(motion_rmse=100,persistence_rmse=150,destination_rmse=200,stationary_destination_rmse=300,
             resource_mae=.2,resource_nochange_mae=.1,weapon_accuracy=.9,weapon_persistence_accuracy=.95,
             weapon_after_switch_accuracy=.1,landmark_accuracy=.6,landmark_majority_accuracy=.6)
-        self.assertEqual(temporal.qualify_heads({'arena':metrics}),dict(motion=True,destination=True,resources=False,weapon=False,landmark=False))
+        expected=dict(motion=True,destination=True,resources=False,weapon=False,landmark=False)
+        expected.update({event:False for event in sequences.EVENTS})
+        self.assertEqual(temporal.qualify_heads({'arena':metrics}),expected)
 
     def test_completed_epoch_resume_matches_uninterrupted_training(self):
         from safetensors.torch import load_file

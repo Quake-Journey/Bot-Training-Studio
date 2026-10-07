@@ -49,10 +49,18 @@ UnRAR доступны DM2/MVD2 и ZIP. Не объявляй эту огран�
 Со встроенной CPU-средой из корня репозитория:
 
 ```powershell
-dist/preview-win-x64/runtime/python.exe -I -m unittest opentdm_x_trainer.test_contracts opentdm_x_trainer.test_studio opentdm_x_trainer.test_pipeline -v
+dist/preview-win-x64/runtime/python.exe -I -m unittest opentdm_x_trainer.test_contracts opentdm_x_trainer.test_studio opentdm_x_trainer.test_pipeline opentdm_x_trainer.test_outcomes -v
 ```
 
 Для среды разработчика задай `PYTHONPATH=worker` и запускай те же модули.
+После перехода к формату последовательностей v3 повтори импорт существующего
+проекта в режиме обновления и подготовку данных. Создай отдельную папку новой
+модели: веса v1/v2 не смешиваются с новым форматом, старые ревизии сохраняются.
+Воспроизводимые локальные эксперименты оформлены в
+`scripts/experiment_outcomes.py`, `scripts/validate_outcome_groups.py` и
+`scripts/validate_continual.py`. Пути проектов/результатов передаются аргументами;
+исходные демки не публикуются. Внутренние групповые разбиения берутся только
+из тренировочной части; исходные validation/test туда не подмешиваются.
 Desktop поддерживает `--ui-test <каталог>` (28 представлений) и
 `--bridge-test <python> <worker> <receipt> [dataset]`. В PowerShell GUI-процесс
 нужно ожидать явно, если требуется его код завершения.

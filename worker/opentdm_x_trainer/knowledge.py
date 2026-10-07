@@ -114,9 +114,12 @@ def analyze(project, donor=None, event=None, cancelled=None):
                 name=matches[0];message=text[len(name)+2:].strip()
                 if 0<len(message)<=160 and not any(ord(ch)<32 for ch in message):chat[name,message]+=1
     # Styles use only attributed live combat observations when available.
-    for batch in pq.ParquetFile(source/"combat.parquet").iter_batches(batch_size=4096,columns=["aliases","weapon"]):
+    for batch in pq.ParquetFile(source/"combat.parquet").iter_batches(batch_size=4096,columns=["aliases","opponent_aliases","weapon","health"]):
         for row in batch.to_pylist():
-            if not donor or donor_match(row["aliases"],donor):weapons[row["weapon"]]+=1
+            if row['health'] is not None and row['health']>0 and (not donor or
+                (donor_match(row['aliases'],donor) and not donor_match(row['opponent_aliases'],donor))):weapons[row["weapon"]]+=1
+    from .behaviour import profile as behaviour_profile
+    conditional=behaviour_profile(source/'combat.parquet',source/'groups.json',donor,cancelled)
     with Physics(project/"map.bsp") as physics:
         ordered=sorted(cells)
         points=[np.mean(cells[key],axis=0).tolist() for key in ordered]
@@ -150,6 +153,7 @@ def analyze(project, donor=None, event=None, cancelled=None):
     report=dict(schema=1,map=world["map"],bsp_sha256=world["bsp_sha256"],source_revision=meta["active_revision"],
         nodes=nodes,links=links,unverified_observed_links=unverified,items=world["items"],control_candidates=controls,
         style=dict(donor=donor,aliases=dict(participants),weapon_observations=dict(weapons),
+                   conditional_preferences=conditional,
                    speed_quantiles={str(q):float(np.quantile(speeds,q)) for q in (.25,.5,.9,.99)} if speeds else {},
                    movement_events=dict(tricks),movement_events_scope="recording aggregate; omitted for donor learning",
                    phrases=[dict(alias=a,text=t,count=n) for (a,t),n in chat.most_common(200)]),

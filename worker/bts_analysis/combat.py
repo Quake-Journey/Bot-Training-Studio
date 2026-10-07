@@ -18,6 +18,7 @@ WEAPONS=dict(blast='blaster',shotg='shotgun',shotg2='supershotgun',machn='machin
 FLASH={0:'blaster',1:'machinegun',2:'shotgun',3:'chaingun',4:'chaingun',5:'chaingun',
        6:'railgun',7:'rocketlauncher',8:'grenadelauncher',12:'bfg',13:'supershotgun',14:'hyperblaster'}
 VEC=pa.list_(pa.float32())
+OBSERVATION_VERSION = 'combat-terminal-ammo-v3'
 SCHEMA=pa.schema([
     ('recording_id',pa.string()),('segment',pa.int32()),('seq',pa.int64()),('time_ms',pa.int64()),
     ('epoch_id',pa.int32()),('slot',pa.int32()),('enemy_slot',pa.int32()),
@@ -25,6 +26,8 @@ SCHEMA=pa.schema([
     ('map',pa.string()),('mvd',pa.bool_()),('weapon',pa.string()),('grounded',pa.bool_()),
     ('origin',VEC),('velocity',VEC),('view',VEC),('eye',VEC),('fov',pa.float32()),
     ('speed_xy',pa.float32()),('health',pa.int32()),('armor',pa.int32()),
+    ('ammo_observed',pa.int32()),('ammo_known',pa.bool_()),
+    ('last_shot_age_ms',pa.int32()),('last_shot_known',pa.bool_()),
     ('packet_enemy_origin',VEC),('packet_enemy_velocity',VEC),('range',pa.float32()),
     ('yaw_error',pa.float32()),('pitch_error',pa.float32()),('camera_yaw_error',pa.float32()),
     ('camera_pitch_error',pa.float32()),('center_ray_clear',pa.bool_()),('shot_ray_clear',pa.bool_()),
@@ -146,6 +149,7 @@ def features(s,enemy,old,old_enemy,scene,collision,configs,base):
     eye=[a+b for a,b in zip(pos,s['view_offset'])] if eye_ok else None
     row=dict(origin=pos,velocity=vel,view=view,eye=eye,fov=s.get('fov'),speed_xy=math.hypot(*vel[:2]),
         grounded=bool(s['pm_flags']&4),health=s['stats'][1],armor=s['stats'][5],
+        ammo_observed=s['stats'][3] if s['stats'][2] else None,ammo_known=bool(s['stats'][2]),
         weapon=weapon(configs.get(base+s['gunindex'],'')),continuous=continuous,
         yaw_rate=angle(view[1],old['view_angles'][1])*10 if continuous else None,
         pitch_rate=angle(view[0],old['view_angles'][0])*10 if continuous else None,
@@ -191,11 +195,11 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
     for f in facts:
         if f['kind']=='epoch' and f['start_conf']==2 and len(parts[f['epoch_id']])==2:epochs[f['segment']].append(f)
     streams=[rows(directory/'player_states.parquet','state'),rows(directory/'entity_frames.parquet','scene'),rows(directory/'events.parquet')]
-    states={};scene=None;configs={};base=32;previous={};previous_scene=None;latest={};segment=None
+    states={};scene=None;configs={};base=32;previous={};previous_scene=None;latest={};segment=None;last_shots={}
     for row in heapq.merge(*streams,key=lambda r:r['seq']):
         kind=row['kind'];seg=row['segment'];t=row['time_ms']
         if seg!=segment:
-            states={};scene=None;configs={};base=32;previous={};previous_scene=None;latest={};segment=seg
+            states={};scene=None;configs={};base=32;previous={};previous_scene=None;latest={};segment=seg;last_shots={}
         if kind=='segment_start':base=62 if row['extended'] else 32
         elif kind=='configstring':configs[row['index']]=row['text']
         elif kind=='scene':scene=row
@@ -206,6 +210,7 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
             prior=latest.get(row['entity']-1)
             age=t-prior['time_ms'] if prior else None
             if not prior or age not in (0,100):counts['unjoined_shots']+=1;continue
+            last_shots[(prior['epoch_id'],prior['slot'])]=t
             shots.add(dict(recording_id=record_id,segment=seg,seq=row['seq'],time_ms=t,slot=row['entity']-1,
                 weapon=w,silenced=bool(row['weapon']&128),mvd=bool(row['mvd']),scope=row['scope'],
                 context_seq=prior['seq'],context_time_ms=prior['time_ms'],context_age_ms=age,
@@ -223,13 +228,28 @@ def prepare_record(directory,record_id,mapname,collision,contexts,shots,counts,s
             latest={}
             for actor,opponent in (players,players[::-1]):
                 slot=actor['slot'];s=states.get(slot)
-                if not s or s['time_ms']!=t or s['pm_type']!=0 or len(s['stats'])<=17 or s['stats'][1]<=0 or s['stats'][16] or s['stats'][17]:continue
+                if not s or s['time_ms']!=t or len(s['stats'])<=17 or s['stats'][16] or s['stats'][17]:continue
+                # Retain the first observed death frame. Dropping it made the
+                # downstream learner see only survivors. PM_SPECTATOR/FREEZE
+                # remain excluded; never confuse a missing POV with death.
+                terminal=s['pm_type'] in (0,2,3) and s['stats'][1]<=0
+                prior=previous.get(slot)
+                if terminal:
+                    if not prior or prior['stats'][1]<=0 or prior['pm_type']!=0 or t-prior['time_ms']!=100:continue
+                elif s['pm_type']!=0:continue
                 if not actor['active_seen'] or actor['chase_spectator'] or not actor['time_ms']<=t<=actor['end_ms'] or (actor['identity_end_ms'] and t>=actor['identity_end_ms']):continue
                 if not all(finite(s[k]) for k in ('origin','velocity','view_angles')):continue
                 result=features(s,entities.get(opponent['slot']+1),previous.get(slot),prior_entities.get(opponent['slot']+1),scene,collision,configs,base)
+                shot_key=(epoch['epoch_id'],slot)
+                if not prior or prior['stats'][1]<=0:last_shots.pop(shot_key,None)
+                last_shot=last_shots.get(shot_key)
+                result.update(last_shot_known=last_shot is not None,
+                    last_shot_age_ms=t-last_shot if last_shot is not None else None)
                 result.update(recording_id=record_id,segment=seg,seq=s['seq'],time_ms=t,epoch_id=epoch['epoch_id'],slot=slot,
                     enemy_slot=opponent['slot'],aliases=actor['aliases'],opponent_aliases=opponent['aliases'],map=mapname,mvd=scene['mvd'])
-                contexts.add(result);latest[slot]=result;counts['contexts']+=1;counts['context/'+result['context']]+=1
+                contexts.add(result);counts['contexts']+=1;counts['context/'+result['context']]+=1
+                if terminal:counts['terminal_contexts']+=1
+                else:latest[slot]=result
                 if result['continuous']:
                     samples[result['context']+'/yaw_rate'].append(abs(result['yaw_rate']))
                     if result.get('lateral_speed') is not None:samples[result['context']+'/lateral_speed'].append(abs(result['lateral_speed']))
@@ -251,7 +271,7 @@ def main(a):
             prepare_record(a.data/record['path'],record['recording_id'],a.map,collision,contexts,shots,counts,samples)
     finally:contexts.close();shots.close();collision.close()
     for name in ('combat','shots'):(a.out/(name+'.parquet.new')).replace(a.out/(name+'.parquet'))
-    report=dict(schema=1,source_run=snapshot['run_id'],bsp_sha256=collision.sha,model_count=collision.models,
+    report=dict(schema=1,observation_version=OBSERVATION_VERSION,source_run=snapshot['run_id'],bsp_sha256=collision.sha,model_count=collision.models,
         physics_sha256=hashlib.sha256(a.physics.read_bytes()).hexdigest(),transform_sha256=sources['combat.py'],sources=sources,
         counts=dict(counts),quantiles={k:quantiles(v) for k,v in samples.items()},seconds=round(time.monotonic()-began,3),
         training_ready=False,limits=[
