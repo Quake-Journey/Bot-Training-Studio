@@ -78,13 +78,19 @@ def main():
     if tag not in git('tag','--list',tag).splitlines():git('tag',tag,head)
     if git('rev-parse',tag)!=head:raise RuntimeError('Existing tag identifies different source')
     git('push','origin','refs/tags/'+tag)
-    releases=api('/releases?per_page=100')
+    releases=api('/releases?per_page=100&fresh='+str(time.time_ns()))
     found=[r for r in releases if r['tag_name']==tag]
+    if not found:
+        found=[r for r in releases if r['draft'] and r['tag_name'].startswith('untagged-')
+            and r['name']=='Bot Training Studio '+version and r['target_commitish']==head]
+    if len(found)>1:raise RuntimeError('Multiple matching drafts; resolve them before publication')
     release=found[0] if found else api('/releases','POST',dict(tag_name=tag,target_commitish=head,
         name='Bot Training Studio '+version,body=args.notes.read_text(encoding='utf-8'),
         draft=True,prerelease='-' in version))
     if not release['draft']:raise RuntimeError('Published versions are immutable; use a new version')
-    release=api('/releases/'+str(release['id']),'PATCH',dict(body=args.notes.read_text(encoding='utf-8')))
+    # Preserve the tag explicitly: a draft update without tag_name can become untagged.
+    release=api('/releases/'+str(release['id']),'PATCH',dict(tag_name=tag,
+        target_commitish=head,body=args.notes.read_text(encoding='utf-8')))
     existing={a['name']:a for a in api('/releases/'+str(release['id'])+'/assets?per_page=100')}
     wanted={a['name'] for a in assets}
     if set(existing)-wanted:raise RuntimeError('Draft contains unexpected assets')
@@ -124,7 +130,7 @@ def main():
     if set(final)!=wanted or any(not matches(final[a['name']],a) for a in assets):
         raise RuntimeError('Final draft verification failed')
     if api('/git/ref/tags/'+tag)['object']['sha']!=head:raise RuntimeError('Remote tag mismatch')
-    published=api('/releases/'+str(release['id']),'PATCH',dict(draft=False))
+    published=api('/releases/'+str(release['id']),'PATCH',dict(tag_name=tag,target_commitish=head,draft=False))
     receipt=dict(version=version,source=head,url=published['html_url'],assets=len(assets),
         bytes=sum(a['size'] for a in assets),sha256_verified=True,prerelease=published['prerelease'])
     (folder/'publication.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
