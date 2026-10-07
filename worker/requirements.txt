@@ -1,0 +1,6 @@
+# Backend-specific PyTorch is installed separately. Tested: 2.10.0+cu128 / Python3.12.
+numpy==2.2.6
+pyarrow==23.0.1
+safetensors==0.7.0
+scikit-learn==1.7.2
+packaging==25.0
