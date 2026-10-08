@@ -2,7 +2,7 @@
 
 Date: 2026-10-08. Requirement owner: ly. Status: implementation specification, NOT an implemented feature or gameplay qualification.
 
-Revision: **r2**, following the PO's request for a thorough technical review. This revision closes specification gaps listed in section 15; it does not claim that the required software is already implemented.
+Revision: **r3**. Retains the technical review corrections from r2 and adds the PO clarification: initial structure can be built without demos or with demos supplied from the outset. Both paths use the same baseline and feed subsequent analysis; neither is an implemented capability yet.
 
 **Scheduling:** implement after completion/acceptance of q3t2 and delivery of 11.2. The PO has not assigned the following release number. Do not rename the current bot, interrupt Claude's q3t2 work, launch servers or treat this document as acceptance of that work. Preparing this specification does not authorize immediate game DLL/SO changes.
 
@@ -11,6 +11,8 @@ Revision: **r2**, following the PO's request for a thorough technical review. Th
 На новой карте мод сам строит первичную базу геометрии, предметов и выполнимых маршрутов. Пока она не проверена, остаётся warmup: боты исследуют карту, не воюют, мигают зелёным и показывают статус обучения. Матч не начинается. После проверки база сохраняется в `opentdm-x/bots/baseline/maps/<map>/`, бот возвращается к обычной игре и сразу использует общие навыки стрельбы, ухода, добивания и контроля.
 
 Каждый матч добавляет наблюдения за людьми и собственными удачами/ошибками. Новые маршруты и изменения тактики сначала проверяются, затем подключаются между матчами. Увиденный прыжок ещё не считается освоенным триксом. Студия импортирует эти же файлы и умеет строить первичную базу самостоятельно через то же общее ядро; нейросеть работает локально у пользователя, на сервере её нет.
+
+Первичное построение в студии можно запускать без демок или сразу с демками. Без демок получается начальная структура, аналогичная серверному baseline; она упрощает и улучшает последующий разбор записей. Если демки уже выбраны, геометрическая основа и наблюдения из них объединяются в одном процессе: не нужно сначала отдельно заканчивать обучение без демок.
 
 Первичная готовность означает пригодность к игре, а не мгновенное мастерство профессионала. Неизвестная обязательная механика, непроверенный выход с респавна или невозможность пройти к важным предметам не должны скрываться сообщением «обучение завершено». Для обычных поддерживаемых карт ручное программирование маршрутов не требуется. Warmup получает те же правила начального стека, оружия, боезапаса и доступных предметов, что и матч: выдача отсутствующего на карте рейлгана прекращается.
 
@@ -135,7 +137,7 @@ LEARN-08: Map changes/unloads cancel old callbacks and queued probe inputs via g
 
 DISC-01: Seed exploration from every legal player spawn, enabled important item approach and recognized transition endpoint. Derive bounded walkable/crouchable surfaces and candidate connections from native collision/BSP data; use directed edges, local refinement and spatial indexing. Do not fill the entire BSP bounding box with an unrestricted dense voxel grid or perform all-pairs traces. Recognize disconnected areas without inventing an exit.
 
-The zero-demo bootstrap is an explicit new component, not a call to the existing observation-only analyzer:
+The zero-demo bootstrap is an explicit new component, not a call to the existing observation-only analyzer. It is a required input-independent capability, not a requirement to exclude available demonstrations or finish a separate no-demo job first. When recordings are supplied initially, their attributed observations seed/refine the same frontier and transition candidates alongside collision-based discovery:
 
 1. Inventory resolved map entities and collision support surfaces. Spawn seeds use the same mode/filter/spawn-placement adjustment as the game, not every `info_player_*` origin treated as a valid standing player. Project pickup and transition seeds onto achievable approach regions with correct hull clearance.
 2. Find candidate standing/crouch supports on relevant collision surfaces, including multiple floor heights over the same XY location. World XY raycasts finding only the topmost surface are insufficient for bridges/stacked rooms.
@@ -144,6 +146,8 @@ The zero-demo bootstrap is an explicit new component, not a call to the existing
 5. Use visible bots to execute necessary exploration/qualification paths once available. Physical exploration is not random wandering until a graph happens to appear. It supplements collision-based discovery and confirms actual executor operation; it does not teleport a bot through unproved edges.
 
 If a full collision-surface enumerator is unavailable, implement and qualify a bounded alternative that proves this same coverage. Supplying recordings to cover the gap does not satisfy no-demo initial learning. Floor settling that rejects a raw spawn origin is an unresolved seed to reconcile with actual spawn placement, not proof that the spawn is unusable.
+
+The resulting baseline is also an analysis foundation: bind recorded positions to known regions/supports, distinguish ordinary motion from mover/teleport/pad transitions, identify resource approaches and focus physical verification on novel trajectories. Reuse previously validated unchanged structure. Do not require every observation to fit an existing edge: an off-graph valid human movement is a candidate for extension/refinement, not evidence to discard just because the initial baseline missed it. Geometry and recordings constrain and improve each other, with provenance and uncertainty preserved.
 
 DISC-02: Classify standing/crouching movement, stairs, jumps, safe drops, ladders, swimming and water exits, doors/buttons, lift boarding/wait/riding/exits, moving platforms, teleports and jump-pad flights. Record direction, entry state, exit/landing region, duration distribution, clearance, activation/phase conditions, reversibility, resource costs, hazard exposure and recovery. A one-way drop/teleport is not a bidirectional corridor. Crossing a trigger is an event, not ordinary interpolation between distant points.
 
@@ -297,7 +301,12 @@ STUDIO-01: Offer an explicit baseline-folder import. A copied `baseline/maps/<ma
 
 STUDIO-02: Read the accepted factory basis, online baseline and compatible user additions with provenance. Deduplicate observations by stable content/event identity, show available coverage/evidence and preserve the original files. Do not arithmetically sum conflicting policies or unrelated model overlays. Pinned bases remain pinned; newer Studio factory weights do not overwrite user training.
 
-STUDIO-03: Provide “Initial map learning” as an independent background operation using the same core and headless host as the server. Studio needs no demos for the initial structure stage and no live public server. It must independently discover/qualify basics, not merely display imported routes. Its isolated worker may use more CPU for search while retaining the same legal physics and validators; GPU models are optional for deeper learning, not a dependency of the shared baseline builder.
+STUDIO-03: Provide “Initial map learning” as a background operation using the same core and headless host as the server, with two supported input paths:
+
+- Map/rules only: build the initial structure without demos, equivalent in semantics to server first-map baseline. Save reusable structure, coverage and uncertainty so recordings can be added later.
+- Map/rules plus game/trick demos immediately: build/refine that same structure with recorded trajectories and events in one coordinated job. Reuse an existing compatible baseline if present. Do not force the user to complete a separate geometry-only learning job before processing these demos.
+
+The structure stage must work independently of recordings and a live public server. It supports subsequent demo analysis and model learning; it is not a competing replacement for demo-based training. Completed regions can assist analysis while other regions are still being discovered; enforce full readiness only when qualifying a gameplay export. The isolated worker may use more CPU for search while retaining the same legal physics and validators; GPU models are optional for deeper learning, not a dependency of the shared baseline builder.
 
 STUDIO-04: Import baseline observations into subsequent map/model training alongside game/trick DM2/MVD2. Preserve evidence uncertainty, participant/life/match boundaries and grouped train/validation splits; observations and the MVD of that same match cannot leak across splits. Fine-tune the local teacher with retained prior-map experience and old-map validation; online server counters are useful evidence, not equivalent to complete model weights.
 
@@ -340,6 +349,8 @@ One official runtime update introduces the generic mechanisms. Subsequent ordina
 | A14 | Repeatable 5-minute bot-vs-bot and recorded human scenarios on unknown/known maps, with fixed seeds/settings and actual loaded-map hashes. A proposed initial battery is twelve 5-minute games; runtime permission/scheduling is obtained separately. Bot-vs-bot wins alone do not prove human-opponent strength. |
 
 Extend A01/A04/A09/A13 with: no-recording graph bootstrap; stacked floors; raw-spawn versus actual player-placement reconciliation; water/crouch/ground state; non-stock gravity and different command intervals; native/offline differential traces through trigger/mover/RJ transitions; execution of previously map-gated common rules on a genuinely different held-out map; per-substep yielding inside a slow native batch; Studio concurrent jobs on different maps; post-match compaction with a self-contained copied folder; and actual countdown/match-entry gating with a human-only escape path. These are mandatory regression cases, not optional research notes.
+
+Extend A10 with both initial-input workflows: (a) map-only baseline, then add demos; (b) supply the same map and demos together from the start. Both must retain demonstrated valid transitions and meet the same physical/coverage gates, without duplicate learning or mandatory user sequencing. Compare region/transition association and validation work against the observation-only analyzer on held-out annotated episodes to substantiate the intended analysis-quality benefit. Include a valid novel off-graph trajectory to prove that the foundation helps interpretation without hiding new discoveries.
 
 Release completeness requires A01-A13 plus gameplay evidence proportionate to A14; explain unsupported mechanisms or failed gates explicitly. Do not declare the feature ready while mandatory route/item access, fire continuity, persistence or Studio interoperability remain unresolved. Player-visible presentation and perceived strength still require ly's acceptance.
 

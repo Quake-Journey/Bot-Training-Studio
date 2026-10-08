@@ -2,7 +2,10 @@
 
 Deferred joint feature (PO, 2026-10-08): shared automatic initial map baseline,
 online server observations and Studio baseline build/import/refinement/export.
-See [the specification, reviewed r2](ONLINE_BASELINE_SPEC.md). The review makes
+See [the specification, reviewed r3](ONLINE_BASELINE_SPEC.md). Initial structure
+supports map-only input or map plus demos from the outset, using one reusable
+baseline that assists subsequent demo analysis. No separate map-only job is
+mandatory when recordings are already supplied. The technical review makes
 the missing no-demo builder, dynamic-physics parity, map-rule migration,
 incremental budgets and transactional storage explicit requirements.
 Implement the game-runtime
