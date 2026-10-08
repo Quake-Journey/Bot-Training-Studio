@@ -72,6 +72,30 @@ def run(request_path):
             from .knowledge import analyze
             result=analyze(request["project"],request.get("donor") or None,
                 event=lambda row:emit("progress",**row),cancelled=cancelled)
+        elif action == 'prepare_mechanisms':
+            from .mechanics_sequences import prepare
+            result=prepare(request['projects'],request['dataset'],int(request.get('context',16)),
+                int(request.get('limit',12000)),event=lambda row:emit('progress',**row),cancelled=cancelled)
+            result=dict(dataset=request['dataset'],context=result['context'],splits=result['splits'],runtime_qualified=False)
+        elif action == 'train_mechanisms':
+            import torch
+            from .mechanics_learning import train
+            from .model_layers import inside
+            if request.get('factory_catalog') and inside(request['store'],request['factory_catalog']):
+                raise ValueError('User training cannot write into factory Models')
+            backend=request['backend']
+            if backend=='auto':backend=next((d['backend'] for d in hardware() if d['backend']!='cpu'),'cpu')
+            options=dict(profile=request.get('profile','compact'),backend=backend,
+                mode=request.get('mode','fresh'),epochs=int(request.get('epochs',20)),batch_size=int(request.get('batch_size',64)),
+                event=lambda row:emit('progress',**row),cancelled=cancelled)
+            try:
+                result=train(request['dataset'],request['store'],**options)
+            except (torch.OutOfMemoryError,RuntimeError) as error:
+                memory_error=isinstance(error,torch.OutOfMemoryError) or str(error).startswith('GPU memory exhausted at batch 1')
+                if request['backend']!='auto' or backend=='cpu' or not memory_error:raise
+                emit('progress',stage='cpu_fallback',message='GPU memory insufficient; continue locally on CPU')
+                options['backend']='cpu';options['mode']='resume'
+                result=train(request['dataset'],request['store'],**options)
         elif action in ("prepare_sequences", "prepare_decisions"):
             if action == 'prepare_decisions':
                 from .decisions import prepare

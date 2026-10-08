@@ -20,6 +20,9 @@ def calibrate(profile,backend,context=None,event=None,cancelled=None,family='seq
         from .decision_learning import OUTPUTS as outputs
     elif family=='sequences':
         inputs,outputs=INPUTS,OUTPUTS
+    elif family=='mechanisms':
+        from .mechanics_sequences import INPUTS as inputs
+        outputs=8
     else:raise ValueError('Unknown model family')
     model=create(profile,len(inputs),outputs).to(device)
     model.activation_checkpointing=profile in ('large','xl')

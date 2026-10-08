@@ -63,7 +63,9 @@ def analyze(project, donor=None, event=None, cancelled=None):
     source=project/"revisions"/meta["active_revision"]
     world=inspect(project/"map.bsp", meta["map"])
     if world["bsp_sha256"]!=meta["bsp_sha256"]:raise ValueError("Project map changed")
+    from .transitions import classify
     cells=defaultdict(list); edges=Counter();last={};weapons=Counter();speeds=[];chat=Counter();participants=Counter();tricks=Counter()
+    mechanism_counts=Counter();mechanism_witnesses=[]
     for ri,record in enumerate(meta["recordings"]):
         if cancelled and cancelled():raise InterruptedError("Map analysis cancelled")
         if event:event(dict(stage="map_evidence",recording=ri+1,total=len(meta["recordings"])))
@@ -94,6 +96,14 @@ def analyze(project, donor=None, event=None, cancelled=None):
                     if len(cells[key])<8:cells[key].append(pos)
                 track=(record["recording_id"],r["segment"],eligible[0]["track_id"])
                 prev=last.get(track)
+                edge=classify(prev,r,world['transitions'])
+                if edge['kind'] in ('teleport','push'):
+                    mechanism_counts[edge['kind']]+=1
+                    if len(mechanism_witnesses)<4096:
+                        mechanism_witnesses.append(dict(recording_id=record['recording_id'],segment=r['segment'],
+                            slot=r['slot'],time_ms=r['time_ms'],mechanism=edge,
+                            origin=prev['origin'],destination=r['origin'],velocity=r['velocity'],
+                            runtime_qualified=False,scope='observed mechanism; not native action replay'))
                 if prev and r["time_ms"]-prev["time_ms"]==100 and math.dist(pos,prev["origin"])<150 and key!=prev["cell"]:
                     if key in cells and prev["cell"] in cells:edges[prev["cell"],key]+=1
                 last[track]=dict(r,cell=key)
@@ -152,15 +162,19 @@ def analyze(project, donor=None, event=None, cancelled=None):
                         requires="live opponent likelihood, actual item timing, muzzle and dynamic collision check"))
     report=dict(schema=1,map=world["map"],bsp_sha256=world["bsp_sha256"],source_revision=meta["active_revision"],
         nodes=nodes,links=links,unverified_observed_links=unverified,items=world["items"],control_candidates=controls,
+        mechanisms=world['transitions'],observed_mechanisms=dict(counts=dict(mechanism_counts),
+            witnesses=mechanism_witnesses,capacity=4096,truncated=sum(mechanism_counts.values())>len(mechanism_witnesses)),
         style=dict(donor=donor,aliases=dict(participants),weapon_observations=dict(weapons),
                    conditional_preferences=conditional,
                    speed_quantiles={str(q):float(np.quantile(speeds,q)) for q in (.25,.5,.9,.99)} if speeds else {},
                    movement_events=dict(tricks),movement_events_scope="recording aggregate; omitted for donor learning",
                    phrases=[dict(alias=a,text=t,count=n) for (a,t),n in chat.most_common(200)]),
         runtime_qualified=False,limits=["Static world and initial mover stops; observed edges not passing Pmove are not exported as traversable.",
-            "Rocket-jump knockback, moving-platform timing and teleport transitions require separate qualification.",
+            "Mechanism witnesses preserve teleport/push evidence but are not exported as native-qualified traversal links.",
+            "Rocket-jump knockback, moving-platform timing and complete mechanism actions require separate qualification.",
             "Item visibility candidates are not a policy; no invented opponent, availability or hit probability."])
     name="knowledge-"+(__import__("uuid").uuid4().hex)+".json"
     atomic_json(source/name,report)
     return dict(path=str(source/name),map=world["map"],nodes=len(nodes),validated_links=len(links),
-                control_candidates=len(controls),phrases=len(report["style"]["phrases"]),runtime_qualified=False)
+                control_candidates=len(controls),observed_mechanisms=dict(mechanism_counts),
+                phrases=len(report["style"]["phrases"]),runtime_qualified=False)

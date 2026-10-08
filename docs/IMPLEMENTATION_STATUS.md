@@ -1,5 +1,13 @@
 # Standalone completion work
 
+2026-10-08: q3t2 accepted by PO; 64 game recordings and 29 trick witnesses
+imported. Compact/Balanced v3 continued learning passes old-map retention gates.
+Separate causal mechanism expert/worker jobs added; teleport/push recognition
+and actual GPU training checked. Offline packages preserve typed witnesses as
+evidence, never as executable links. Read Q3T2_LEARNING_RU.md / Q3T2_LEARNING_EN.md.
+No new desktop build, factory-weight replacement or game runtime is delivered
+by this research milestone; tactical action/weapon/item qualification stays open.
+
 Deferred joint feature (PO, 2026-10-08): shared automatic initial map baseline,
 online server observations and Studio baseline build/import/refinement/export.
 See [the specification, reviewed r3](ONLINE_BASELINE_SPEC.md). Initial structure
@@ -47,10 +55,11 @@ particular, auxiliary tactical heads failed their baseline comparisons; the
 compiler excludes them even when movement predictions passed. CPU/CUDA local
 runtime builds exist; this is not AMD/Intel or clean-machine certification.
 
-PO corrected experiment order: learn/validate ONLY q2duel5 and ztn2dm3 now.
-Wait for Claude to finish q3t2, then add q3t2 and its teleport experience;
-only afterwards evaluate/adapt q2duel1 with retention checks. Both q3t2 and
-q2duel1 are excluded from current training; do not bypass this sequencing.
+PO accepted and closed q3t2 / OpenTDM-X Beta11.2 on 2026-10-08. Offline Studio
+training now includes q3t2 teleports and push pads, retaining q2duel5/ztn2dm3.
+Only afterwards evaluate/adapt q2duel1 with retention checks. q2duel1 is still
+excluded from current training; do not bypass this sequencing. This unlocks
+offline model work, not automatic game DLL changes or the online baseline task.
 q2duel1 source archives: demos.q2players.org.zip and EDL.zip (user-local corpus;
 never upload the recordings with public source).
 

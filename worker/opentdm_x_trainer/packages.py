@@ -40,6 +40,17 @@ def validate(path):
     if any(len(n["origin"])!=3 or not np.isfinite(n["origin"]).all() for n in nodes):raise ValueError("Invalid node position")
     if any(not (0<=l["source"]<len(nodes) and 0<=l["target"]<len(nodes)) for l in links):raise ValueError("Dangling route")
     if any(not np.isfinite(l["seconds"]) or not 0 < l["seconds"] <= 60 for l in links):raise ValueError("Invalid traversal time")
+    evidence=routes.get('observed_mechanisms',{}).get('witnesses',[])
+    if len(evidence)>4096:raise ValueError('Mechanism witness limit')
+    mechanisms=docs['map.json'].get('transitions',[])
+    if len(mechanisms)>4096 or len({m['id'] for m in mechanisms})!=len(mechanisms):raise ValueError('Invalid mechanism inventory')
+    ids={m['id'] for m in mechanisms}
+    for witness in evidence:
+        edge=witness.get('mechanism',{})
+        if witness.get('runtime_qualified') is not False or edge.get('kind') not in ('teleport','push') or edge.get('id') not in ids:
+            raise ValueError('Invalid or falsely qualified mechanism witness')
+        if any(len(witness[k])!=3 or not np.isfinite(witness[k]).all() for k in ('origin','destination','velocity')):
+            raise ValueError('Invalid mechanism witness vector')
     policy=docs["policy.json"]
     if policy is not None:
         tree=policy["nodes"];count=policy["features"]
@@ -115,6 +126,8 @@ def compile(project, knowledge, output, model_store=None, include_chat=False):
             factory_base=meta.get('factory_base'),user_overlay_sha256=meta['files'].get('user-delta.safetensors'))
     docs={"map.json":world,"routes.json":{k:report[k] for k in ("nodes","links","items","control_candidates")},
           "style.json":style,"policy.json":policy,"validation.json":validation}
+    if 'observed_mechanisms' in report:
+        docs['routes.json']['observed_mechanisms']=report['observed_mechanisms']
     blobs={name:encode(value) for name,value in docs.items()}
     manifest=dict(schema=SCHEMA,id=uuid.uuid4().hex,map=world["map"],bsp_sha256=world["bsp_sha256"],
         runtime_qualified=False,server_installable=False,requires_capabilities=["bts-candidate-reader-v1"],

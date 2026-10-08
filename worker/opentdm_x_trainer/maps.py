@@ -72,11 +72,20 @@ def inspect(path, map_name=None):
             movers.append(dict(base, model=ent.get("model"), speed=ent.get("speed"), height=ent.get("height")))
         if "teleport" in name:
             teleports.append(base)
+    from .transitions import inventory, VERSION
+    models = []
+    for offset in range(0, len(lumps[13]), 48):
+        values = struct.unpack_from('<6f', lumps[13], offset)
+        if not all(math.isfinite(v) and abs(v) < 65536 for v in values) or any(values[i] > values[i+3] for i in range(3)):
+            raise ValueError('Invalid inline model bounds')
+        models.append((list(values[:3]), list(values[3:])))
+    mechanisms = inventory(entities, models)
     vertices = list(struct.iter_unpack("<3f", lumps[2]))
     if not vertices or not all(math.isfinite(v) for point in vertices for v in point):
         raise ValueError("Invalid map vertices")
     return dict(schema=1, map=map_name, bsp_sha256=hashlib.sha256(raw).hexdigest(),
                 title=entities[0].get("message", path.stem), items=items, spawns=spawns,
-                movers=movers, teleports=teleports, vertices=len(vertices),
+                movers=movers, teleports=teleports, transitions=mechanisms, transition_version=VERSION,
+                vertices=len(vertices),
                 bounds=[[min(p[i] for p in vertices) for i in range(3)], [max(p[i] for p in vertices) for i in range(3)]],
                 world=entities[0], item_availability="initial entity placements only; runtime presence not implied")

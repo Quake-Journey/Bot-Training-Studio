@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Output)
+param([Parameter(Mandatory=$true)][string]$Output, [switch]$Research)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $Output = [IO.Path]::GetFullPath($Output)
@@ -13,7 +13,8 @@ try {
     $word.AutomationSecurity = 3
     $word.DisplayAlerts = -1
     foreach ($language in @('RU','EN')) {
-        $source = Join-Path $repoRoot "docs\Bot_Training_Studio_User_Guide_$language.docx"
+        $name = if ($Research) { "Bot_Training_Studio_q3t2_Research_$language.docx" } else { "Bot_Training_Studio_User_Guide_$language.docx" }
+        $source = Join-Path $repoRoot "docs\$name"
         $before = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
         Write-Output "Opening $language guide read-only"
         $document = $word.Documents.Open($source, $false, $true, $false)

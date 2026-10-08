@@ -1,0 +1,19 @@
+{
+  "builder_sha256": "712d13ab8481e6d22c05319bea4be58892e0ef73774e8e7286315bffbfb9c667",
+  "documents": [
+    {
+      "language": "RU",
+      "source": "Q3T2_LEARNING_RU.md",
+      "source_sha256": "ebbe150a01fca570bbb31c2aac8c29f5d888b49d5513fb329aa6b4fa685ced5f",
+      "file": "Bot_Training_Studio_q3t2_Research_RU.docx",
+      "sha256": "0d9e39cbe2caf66e3adeb8623bdbb8250c98342dada5187d28e3d8a58a2dadbb"
+    },
+    {
+      "language": "EN",
+      "source": "Q3T2_LEARNING_EN.md",
+      "source_sha256": "76c4bead14ee01ab390c6fcf165cc73c1769e43200ad6de4f991aaf48647a07e",
+      "file": "Bot_Training_Studio_q3t2_Research_EN.docx",
+      "sha256": "4d3ef5e13cc73d3c30915a92735ee975bc70a063f57a4e43a6343af354b20d34"
+    }
+  ]
+}
