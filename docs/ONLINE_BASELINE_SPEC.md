@@ -2,6 +2,8 @@
 
 Date: 2026-10-08. Requirement owner: ly. Status: implementation specification, NOT an implemented feature or gameplay qualification.
 
+Revision: **r2**, following the PO's request for a thorough technical review. This revision closes specification gaps listed in section 15; it does not claim that the required software is already implemented.
+
 **Scheduling:** implement after completion/acceptance of q3t2 and delivery of 11.2. The PO has not assigned the following release number. Do not rename the current bot, interrupt Claude's q3t2 work, launch servers or treat this document as acceptance of that work. Preparing this specification does not authorize immediate game DLL/SO changes.
 
 ## Кратко для ly
@@ -36,11 +38,16 @@ Inspected the current bot worktree and Studio source on 2026-10-08, not just ear
 - `inc/shared/q2px_bot_host.h` exposes bot creation/input and synchronous server-thread prediction. Current Pmove prediction is useful for locomotion; it does not itself simulate every game trigger, projectile, rocket impulse, item touch or moving-world event. An engine refusal due to forecast budget is “not evaluated”, not “impossible”.
 - `g_tdm_client.c::TDM_SetInitialItems`, MM_WARMUP, currently grants almost all weapons except BFG, ample ammo and body armour. The match branch ordinarily starts with blaster; ITDM has its own rail rule. This directly explains why learning from present warmup inventory is incorrect.
 - Studio `worker/opentdm_x_trainer/maps.py` reads IBSP38 placement data and explicitly does not assert live availability. `native/engine/` includes native map/trace/Pmove/demo components with a source manifest. They are a starting point, not proof of complete dynamic-map simulation or a shared online builder.
+- More specifically, Studio `knowledge.py::analyze` seeds cells/edges from recording states. With no recordings it provides no observation seeds; there is currently no zero-demonstration BSP-to-route builder. `physics.c::OTXF_NavSettle` rejects water and limits floor settling; `OTXF_NavLinks` checks short ordinary links with 100 ms commands and static mover stops. `mapgen_pmove.c` initializes stock parameters with `PmoveInit`, defaults gravity to 800, and explicitly does not carry a real moving ground entity through `MapGenPmove_Step`. Reusing those files unchanged cannot satisfy arbitrary rules, swimming, live lift dynamics or RJ validation.
+- Current `otx.c` still guards some item, pursuit, recovery and connector decisions with q2duel5/ztn2dm3 map-name tests. For example, `otx_item_doctrine` is enabled only when the name is q2duel5. A generic graph does not automatically inherit those behaviors. Section 8 requires an explicit migration/compatibility inventory.
+- The mod currently declares only the read-side prefix of `FILESYSTEM_API_V1`. The paired engine's full `filesystem_api_v1_t` supplies write/flush but no rename/replace operation. Engine-internal `FS_RenameFile*` functions are not automatically available to a game DLL. Transactional persistence therefore needs an explicit supported host operation or a crash-safe journal design; do not invent a usable rename callback.
 - Existing design `design_codex_2026-10-07_bot_training_studio_runtime_contract.md` already requires a generic bounded data loader, no user compilation, physics/rules identity and atomic generations. This specification adds the online producer and continual evidence loop; it does not replace the Studio factory/user-model separation.
 
 The original [Quake II game API](https://github.com/id-Software/Quake-2/blob/master/game/game.h) exposes traces, contents, Pmove, game-frame and entity-spawn hooks. It does not expose the engine's complete internal BSP or an isolated complete game-world simulator. Consequently, use the existing filesystem extension for bounded BSP input and explicit host adapters for authoritative rules/dynamic simulation; never cast engine-private structures. Original [trigger code](https://github.com/id-Software/Quake-2/blob/master/game/g_trigger.c) changes velocity/gravity and invokes target logic outside ordinary free-space routing. Our inference: a geometrically clear segment alone cannot certify those transitions.
 
 These findings establish feasibility boundaries, not a measured learning duration or bot strength. No new server test was run for this specification.
+
+Review probe: in an isolated process, the existing packaged physics DLL was opened against q2duel5 and ztn2dm3, without starting a client or dedicated server. Twenty measured calls per map checked a repeated batch of 32 local candidate links. Median/max batch times were 0.71225/0.76750 ms on q2duel5 and 0.12755/0.13920 ms on ztn2dm3. This is neither map discovery nor a slow-server benchmark, and repeated local candidates do not measure coverage. It nevertheless shows that even an existing native batch can exceed the draft 0.5 ms slice: `step()` must resume inside rollout/batch work. The review evidence records BSP/DLL hashes and scope; timings are observations on this workstation only.
 
 ## 3. Shared native core and host contract
 
@@ -59,6 +66,10 @@ Keep the interface small. Proposed conceptual operations:
 
 These are API semantics, not mandatory exact C signatures. Explicitly distinguish completion, invalid input, temporarily unavailable host budget, stale snapshot, missing capability, storage failure and cancellation. Every long operation, including decoding and commit preparation, must yield; a time check only outside one huge graph search is insufficient.
 
+Store each search/rollout cursor and its simulated player/world state between steps. One `step` must be able to stop between candidate links and between command/physics substeps, not only between batches of dozens of links. Deterministic work-budget mode is required for comparable tests, alongside wall-clock protection. A job cannot hold a borrowed live world pointer across a yield: refresh or reject stale dynamic snapshots.
+
+The current analyzer has process-global `world/movers/scene_trace` state in addition to thread-local Pmove bindings. For Studio multitasking, either create explicit per-job contexts in the shared core or run each native job in its own isolated worker process with a bounded scheduler. Do not invoke that existing DLL concurrently for different maps and assume thread-local Pmove alone makes it safe. In the server, there is one core context for the active map, shared by its bots.
+
 Host adapters provide:
 
 - Actual BSP bytes/hash and resolved entity overrides from the same search paths as the running map; bounded filesystem read/write and transactional replacement under the mod root.
@@ -69,6 +80,8 @@ Host adapters provide:
 - Monotonic time, frame budget, actual executed inputs, event timestamps and map/session generation tokens. No engine callbacks from worker threads.
 
 Do not impose a new engine extension when an existing documented facility suffices. Where the current API cannot provide isolated correct simulation, specify and ship the minimal official host extension/worker capability. No fake success through simplified gravity, ignored triggers, teleporting probes or infinite armour.
+
+Native parity is an observable contract, not shared source filenames. Replay identical initial state, executed commands and world events through the actual paired runtime and the offline host; compare positions/velocities/stance, trigger activation and arrival, mover/ground state, inventory/pickups and damage at relevant substeps. Declare tolerances derived from actual coordinate/time quantization. Divergence at a required transition fails that capability. Include configured gravity, input durations, crouch/jump-held state, ground contact and effective movement parameters; do not validate only stock 800-gravity, 100 ms walking and generalize it to every server.
 
 Studio's offline host uses the same rules evaluator and compatible native physics/collision/dynamic-entity adapters. A BSP alone does not reveal a server's cvar/rules overrides: allow an exported rules/capability snapshot, otherwise visibly use a named default rules target. Compatibility must be established against the actual runtime before export is marked installable.
 
@@ -102,11 +115,15 @@ LEARN-01: During initial DISCOVER/QUALIFY/COMPILE/COMMIT, all participating bots
 
 LEARN-02: Block every path to a match while mandatory initial qualification is incomplete: player `ready`, votes/administrative start, bot auto-ready, countdown completion and scheduled bot matches. A refused start returns the phase/reason. An attempted ready is not silently queued to launch later. Administrative map change/disable-bots remains possible; ordinary human-only gameplay must not become permanently unavailable due to a failed bot job.
 
+Use one authoritative `can_start_bot_match` readiness predicate at both `TDM_BeginCountdown` and `TDM_BeginMatch`, before state changes or level reset, plus all bot scheduler entry points. Checking only the ready console command is insufficient. The gate applies when bots would participate in the match; a human-only match does not require bot route readiness. If a human match starts while analysis is incomplete, exploration bots leave active play and discovery pauses or continues only as budgeted isolated work. Never insert an unready bot into that running match. With no bot seat, report `waiting for exploration seat` and do whatever BSP/isolated work is legal; do not fabricate a valid spawned bot for the present prediction API.
+
 LEARN-03: Display a moderate green blinking shell on learning bots and an overhead status label: `Initial map learning` / `Первичное изучение карты`, phase and useful progress. Do not change permanent nicknames, hitboxes, aim, movement speed or gameplay physics to display it. Existing shell/effect flags must be restored correctly, not cleared indiscriminately. The current engine defines `EF_COLOR_SHELL` and `RF_SHELL_GREEN`; use their compatible rendering path for the shell. A world-anchored text label is a separate client presentation capability: implement negotiated official-client support if needed, without pretending console/centerprint alone is an overhead label. Older supported clients receive a clear HUD/console fallback and must not disconnect; document that visual limitation. MVD playback must preserve the status or its explicit fallback.
 
 LEARN-04: On joining the server or entering play/spectating, show the current shared job status once, then rate-limited phase/progress updates. Example console semantics: map and rules target; current phase; completed/total required spawn/resource routes; unresolved mandatory transitions; resource wait reason; saved generation. Do not advertise an exact percentage/ETA before work size is known, or flood reliable messages every server frame. Overhead/HUD updates are coalesced; console defaults to phase changes and at most one progress line per five seconds.
 
 LEARN-05: Humans can move in warmup while learning. Learning bots do not retaliate; this is the explicit user-requested exception to the ordinary combat “always return fire” requirement. They remain subject to normal physical damage and game rules. Being killed or blocked resumes exploration safely and does not restart map learning, certify a failed edge or count as a combat-policy failure. Prevent a human occupying a doorway from permanently marking that doorway unreachable.
+
+No combat does not forbid the legal self-directed shot required for a qualified traversal/RJ probe. Such a shot must be part of the exploration action, with actual resources/damage and a clear probe area; defer it when a human makes the probe unsafe. Never aim at a human or use “training” to run combat control fire. Do not disable projectile damage or otherwise alter physical outcomes to make a probe pass.
 
 LEARN-06: On readiness, commit the complete baseline, remove learning effects/labels, clear learning movement/input intents, restore normal inventory through a normal respawn/reset where necessary and print the saved generation/coverage. Match startup returns to the usual policy; no hidden automatic human match launch from an earlier refused ready. Normal bot-only automatic matches may resume under the existing rules.
 
@@ -117,6 +134,16 @@ LEARN-08: Map changes/unloads cancel old callbacks and queued probe inputs via g
 ## 6. Discovery and physically executable routes
 
 DISC-01: Seed exploration from every legal player spawn, enabled important item approach and recognized transition endpoint. Derive bounded walkable/crouchable surfaces and candidate connections from native collision/BSP data; use directed edges, local refinement and spatial indexing. Do not fill the entire BSP bounding box with an unrestricted dense voxel grid or perform all-pairs traces. Recognize disconnected areas without inventing an exit.
+
+The zero-demo bootstrap is an explicit new component, not a call to the existing observation-only analyzer:
+
+1. Inventory resolved map entities and collision support surfaces. Spawn seeds use the same mode/filter/spawn-placement adjustment as the game, not every `info_player_*` origin treated as a valid standing player. Project pickup and transition seeds onto achievable approach regions with correct hull clearance.
+2. Find candidate standing/crouch supports on relevant collision surfaces, including multiple floor heights over the same XY location. World XY raycasts finding only the topmost surface are insufficient for bridges/stacked rooms.
+3. Expand bounded local frontiers from those supports using spatial neighbors, legal step/crouch/jump/drop candidates and recognized transitions. Verify connections under native dynamics, storing witnessed input/control and exit conditions; do not require a human to have already visited each frontier.
+4. Refine around uncovered legal spawns/resources/transitions and build both resource-to-spawn and escape connectivity. Do not let discovery stop at the first already-connected room or classify an undiscovered part as decorative.
+5. Use visible bots to execute necessary exploration/qualification paths once available. Physical exploration is not random wandering until a graph happens to appear. It supplements collision-based discovery and confirms actual executor operation; it does not teleport a bot through unproved edges.
+
+If a full collision-surface enumerator is unavailable, implement and qualify a bounded alternative that proves this same coverage. Supplying recordings to cover the gap does not satisfy no-demo initial learning. Floor settling that rejects a raw spawn origin is an unresolved seed to reconcile with actual spawn placement, not proof that the spawn is unusable.
 
 DISC-02: Classify standing/crouching movement, stairs, jumps, safe drops, ladders, swimming and water exits, doors/buttons, lift boarding/wait/riding/exits, moving platforms, teleports and jump-pad flights. Record direction, entry state, exit/landing region, duration distribution, clearance, activation/phase conditions, reversibility, resource costs, hazard exposure and recovery. A one-way drop/teleport is not a bidirectional corridor. Crossing a trigger is an event, not ordinary interpolation between distant points.
 
@@ -161,6 +188,16 @@ Default, arcade, defence and chaotic retain their intended distinctions. Defence
 
 A shared combat improvement found on a new map is eligible for old maps only after common-mechanism regression checks. Online map experience must not silently rewrite the global aim/combat algorithm. Existing handcrafted/Studio-qualified map data is a protected comparison basis, not overwritten by the first weaker automatic graph. Merge additional verified observations into a separate layer and compare before activation.
 
+### Required migration and initial-policy construction
+
+Before claiming general skill transfer, inventory every map-name/coordinate/connector-index condition on the execution path of these mechanisms. Classify it as (a) genuine geometry/resource annotation to serialize as map data, (b) a general behavior accidentally map-gated to move into the common policy, or (c) a compatibility workaround retained only for its original qualified package. Record the old condition, new mechanism/features and old/new native scenario evidence. Do not blindly delete map guards or apply a map-specific threshold everywhere; preserve accepted maps through compatibility fixtures until replacement is proven.
+
+The initial policy builder must concretely produce a resource/control graph, route ETAs and alternatives, cover/height/exposure annotations, spawn-recovery plans and item-cluster acquisition/control candidates. The runtime evaluates them using current inventory/stack, score/time, opponent evidence and weapon suitability. Resource priorities are recomputed from the actual rules, pickup gain and ETA; a demo frequency table is not mandatory and a default coefficient vector alone is not a learned map policy.
+
+Keep three independent outputs: route/movement feasibility, tactical goal selection and legal combat execution. A goal change or temporarily hidden opponent must not reset viable fire continuity, trigger needless weapon redraws or strand the bot in a lift-wait state. Conversely, a generic finish request cannot erase an attainable high-value pickup or turn every respawn into an unarmed frontal attack. Verify these arbitration cases explicitly with available weapon/shot/cooldown state; physical cooldown/no safe line of fire is not the same as a bot choosing silence despite a ready feasible shot.
+
+Promote a reusable baseline feature using map-relative geometry and capabilities, not a new `if map == ...` branch. A newly selected held-out map, with no C changes or demonstrations, must exercise the same mechanisms as the previously tuned maps. Renaming a known map with identical BSP is an identity/reuse test, not sufficient evidence of new-map competence.
+
 ## 9. Live collection and post-match learning
 
 OBS-01: Collect bounded server-side events in the normal game, without requiring MVD/verbose console logging or a spectator recorder. Record map/rules/generation, match/life boundaries, sampled actual positions/velocity/stance, relevant executed input sequences, timestamps/substeps, view/aim, inventory/ammo/stack changes, pickup/shot/damage/death events, movers/triggers and selected bot action/rejection reasons. Input received from a human is not necessarily the input already executed; retain authoritative execution order and uncertainty. Capture useful movements by all relevant humans, not only the bot's current duel opponent, with participant separation.
@@ -178,6 +215,19 @@ OBS-06: Each completed match must be accounted for: accepted additions, retained
 OBS-07: Running matches use an immutable installed knowledge generation. Live hazard checks and temporary failed-edge avoidance still react immediately; this is ordinary safety, not mid-match installation of an unvalidated policy. Persistent updates are activated at a warmup/map boundary and logged. Preserve a last-known-good generation and rollback/quarantine a newly observed invalid edge without destroying good unrelated knowledge.
 
 OBS-08: Share map mechanics across donors. Preserve source attribution/confidence without replacing donor play identity. Potential general skill improvements go to a separate shared-candidate record for Studio/developer validation on old maps; do not auto-promote global behavior after a public-server match.
+
+### Minimum executable learning mechanism
+
+This feature needs a real bounded learner, not only a journal and not a claim that counters create understanding by themselves. For each admitted action class, define context features, observed costs/outcomes, the parameters that may change and the validation/promotion rule. At minimum:
+
+- Route entries update conditional traversal time, collision/stall/failure evidence and recovery choices. A reproducible geometry/physics failure can quarantine a link; combat damage or temporary human blocking cannot permanently remove an essential connection.
+- Human novel trajectories become executable candidates only after input fitting/replay and physical qualification; retain the actual witness and its admissible starting envelope. They can add links/alternatives, not only increment use counts.
+- Item/position decisions update bounded context-conditioned preferences from pickup gain, arrival timing, exposure, damage/frag outcomes and continued escape options. Use only available evidence; an unobserved alternative outcome remains unknown. Native simulation may prove physical feasibility, but a scripted/no-response opponent does not prove tactical superiority.
+- Compare proposed policy changes with the accepted policy on a retained representative scenario set and counterexamples, under the same current rules/capabilities. Hard invariants take precedence over learned preference weights. Admit changes only inside the tested context/envelope; retain prior behavior elsewhere.
+
+Specify count/confidence thresholds and maximum update magnitude before implementation qualification, then test them on held-out human episodes. With sparse evidence, improve route witnesses/verified timings first and leave uncertain tactical weights at their prior. Never invent a negative reward for every retreat or a positive reward for every item taken; both are context-dependent. During a game, collect; after its conclusion, requalify/compile candidates incrementally and record which concrete new action/preference the next game will actually use.
+
+Capture relevant executed usercmds at the mod's actual ClientThink/execution path, with pre/post state and effective angles/timing, and reconcile later trigger/weapon/damage events. A once-per-server-frame position trace cannot identify every short strafe/double-jump sequence. Use short per-participant rolling input buffers and seal only meaningful episodes, with explicit dropped-sample markers. Burst/packet/PA ordering and life/disconnect boundaries must survive export. A gap is missing evidence, never a shortcut inferred across it.
 
 ## 10. Persistent representation and recovery
 
@@ -207,6 +257,10 @@ Manifest records parent generation, active shared/factory basis IDs, payload siz
 
 Write bounded staging payloads, verify their hashes and coverage, flush/close as appropriate, then atomically replace the active-generation pointer. Preserve the previous complete generation. All concurrent users/processes follow one-writer ownership for this map variant; a second server waits or keeps a read-only accepted snapshot, never writes racing statistics into the same file. Prefer separate baseline roots for separate independent servers, with explicit import/merge if desired.
 
+Atomic replacement requires an actual host capability. Either add a narrow versioned, root-scoped transactional storage API to the paired engine, or specify a tested append-only commit journal with length/checksum/sequence records and a two-slot generation recovery rule. The existing read-prefix cast and `WriteFile/FlushFile` alone are not proof of atomic replacement or power-loss durability. Engine-free storage code may operate only on immutable owned buffers and validated paths; it cannot call engine APIs from an I/O thread. State the durability guarantee honestly and test process crash separately from simulated partial writes.
+
+Avoid rewriting/copying the complete graph/world for every match. Reuse immutable payloads by digest inside the copied map root, seal bounded evidence chunks and compact statistics at controlled intervals. All references needed to import a map must be included within that map export or declared as checked dependencies; do not create invisible global objects outside `baseline/maps/<map>/` that break folder copying. Cap generation history/parent depth and retain active + last-known-good references when garbage collecting unreferenced objects. When a match adds no admitted change, record its result without creating a duplicate full generation.
+
 A crash, disk full/read-only root, malformed/truncated input, stale checkpoint or process kill must not replace good data. On restart validate and reuse the last commit; resume only checkpoints with matching dependencies. Read-only deployments may run an existing accepted baseline but must clearly report that new experience is not durable. On a first-ever map, a volatile candidate can be shown as computed, but must not report persisted readiness or silently restart the same expensive discovery every rotation. Provide a writable configured baseline root or explain the required fix.
 
 Factory/handcrafted packages remain immutable. Online baseline is an additive local layer bound to its basis; an update to the mod/installed map package never silently discards it or rebases incompatible data. If compatibility changes, preserve old data and migrate/requalify or retain it as an importable historical variant.
@@ -217,17 +271,21 @@ Incremental, rebuild and cancel operations must be distinct. Rebuild creates a n
 
 Do not repeat the earlier verbose-log production lag or uncontrolled temporary-data growth. A few bots must not create several independent full-map search trees. One map job shares a bounded budget across all bot seats; normal network/game-frame work has priority. Use time deadlines AND trace/prediction/node-expansion/event quotas, including inner loops and memory allocations. On a busy/slow server yield fairly; budget refusal does not count as a failed route.
 
-Initial **engineering targets, not measured capabilities or existing cvars**:
+Initial **benchmark starting points, not shipping defaults, measured capabilities or existing cvars**. Select the release limits only after the complete-work measurements below:
 
 | Resource | Initial target / behavior |
 |---|---|
-| Additional discovery/qualification CPU | At most 0.5 ms per server frame and at most 1% of the frame interval, whichever is smaller; shared across bots. Configure/tune after measurements, without borrowing unbounded time from normal bot planning. |
+| Additional discovery/qualification CPU | Start calibration at a shared 0.5 ms per server frame / 1% of the interval envelope, whichever is smaller. Measure whether this permits useful completion; select a bounded adaptive warmup budget before shipping, without borrowing unbounded time from normal bot planning. |
 | In-match collection | Bounded event-ring writes; target <=0.1 ms per frame for the whole collector, with allocation-free hot paths. Measure actual whole-frame tails. |
 | Post-match work | Same incremental budget by default; no unbounded synchronous compile/save at the final frag. |
-| Map learning working set | Default planning ceiling 64 MiB, explicit hard cap and refusal of oversized maps. Exact required capacity must be measured before release; no silent graph truncation. |
+| Map learning working set | Evaluate a 64 MiB planning ceiling, then choose an explicit measured hard cap and refusal of oversized maps. Account for the full working set before release; no silent graph truncation. |
 | Pending observations | Start with <=16 MiB per active map variant, deduplication and rotation; never grow without a cap. |
 | Persisted baseline | Target <=64 MiB per ordinary map variant, active + previous generation accounted for; default total root quota 1 GiB. Retention limits must not silently delete the only accepted baseline of a map. |
-| Initial warmup duration | Progress/warning at 120 s; initial per-visit hard limit 10 min, checkpoint and explicit incomplete result. These are configurable engineering starting points, not a promise that every map finishes in that time. |
+| Initial warmup duration | Evaluate a progress warning at 120 s and checkpoint/continuation near 10 min. Choose a progress-aware bounded visit limit jointly with measured CPU/workload, never promise that every map finishes in ten minutes. |
+
+**Review correction:** these draft numbers must not be frozen as simultaneous shipping guarantees. At 10 server frames/s, a 0.5 ms slice gives only 3 seconds of maximum compute over ten minutes, before I/O/other limits. There is no measurement showing that this can discover and robustly validate a complete unknown map. The isolated native probe above also exceeded one such slice for a single existing 32-link batch. Before selecting defaults, measure complete discovery, mandatory validation and save work on several held-out maps and a weak CPU; estimate completion using measured work and the permitted slice. Choose a bounded adaptive warmup budget and timeout/checkpoint policy together. Keep optional refinement deferrable and permit administrative continuation from a checkpoint. Do not abort a supported map at an arbitrary ten-minute threshold and present that as successful autonomous learning, or silently raise the budget until the server lags.
+
+Memory/disk accounting includes parsed BSP/collision state, dynamic snapshots, frontier queues, route caches, rollout states, pending event rings and staging/previous payloads, not only the final graph. One configured limit may not be counted separately for every bot/variant. If the complete minimum working set exceeds the ceiling, report the measured requirement before starting expensive work; no dropping mandatory items/spawns to fit. The runtime already owns map collision state; explicitly account for any extra parser copy instead of assuming it is free. Root quota exhaustion pauses durable updates with a visible reason; it cannot silently discard another map's only baseline.
 
 The first limited implementation must use measured traces/rollouts to calibrate quotas. If the core cannot meet them, reduce optional exploration/refine local regions/yield; do not increase arbitrary server lag or mark omitted mandatory work complete. An individual host call must also be bounded; filesystem stalls require bounded asynchronous I/O on immutable buffers or preallocated incremental writes, with no engine callbacks off-thread. Windows/Linux replacement and durability semantics need actual tests.
 
@@ -281,9 +339,27 @@ One official runtime update introduces the generic mechanisms. Subsequent ordina
 | A13 | On a weak CPU, measure learning and gameplay with one/two bots plus a human and two server instances. Show learning cost, collector cost, whole-frame p95/p99/max, misses, storage and memory against learning disabled. No unlimited debug logging. |
 | A14 | Repeatable 5-minute bot-vs-bot and recorded human scenarios on unknown/known maps, with fixed seeds/settings and actual loaded-map hashes. A proposed initial battery is twelve 5-minute games; runtime permission/scheduling is obtained separately. Bot-vs-bot wins alone do not prove human-opponent strength. |
 
+Extend A01/A04/A09/A13 with: no-recording graph bootstrap; stacked floors; raw-spawn versus actual player-placement reconciliation; water/crouch/ground state; non-stock gravity and different command intervals; native/offline differential traces through trigger/mover/RJ transitions; execution of previously map-gated common rules on a genuinely different held-out map; per-substep yielding inside a slow native batch; Studio concurrent jobs on different maps; post-match compaction with a self-contained copied folder; and actual countdown/match-entry gating with a human-only escape path. These are mandatory regression cases, not optional research notes.
+
 Release completeness requires A01-A13 plus gameplay evidence proportionate to A14; explain unsupported mechanisms or failed gates explicitly. Do not declare the feature ready while mandatory route/item access, fire continuity, persistence or Studio interoperability remain unresolved. Player-visible presentation and perceived strength still require ly's acceptance.
 
 ## 15. Decisions to validate during implementation
+
+### r2 review findings and disposition
+
+| Finding in the first draft | r2 correction |
+|---|---|
+| Existing observation-based navigation could be mistaken for a no-demo builder. | Explicit new collision/frontier bootstrap and raw-spawn reconciliation in section 6; mandatory blind-map case. |
+| Shared source could be mistaken for full dynamic/physics equivalence. | Actual stock/static limits identified; runtime/offline differential contract and substep state in section 3. |
+| General experience transfer was underspecified despite map-name gates in live code. | Required gate inventory, classification, common-rule migration and actual map-policy outputs in section 8. |
+| Post-match learning was described by intent more than an executable process. | Context/outcome/witness/update/promotion contract and executed-input collection in section 9. |
+| 0.5 ms plus a ten-minute timeout was unsupported by end-to-end measurements. | Compute envelope calculated; isolated batch probe; joint budget/completion calibration required in section 11. |
+| Transactional storage presumed a callback not present in the declared filesystem API. | Explicit supported storage operation or tested crash-safe journal in section 10. |
+| Frequent generations could repeatedly copy full data or depend on objects outside the copied folder. | Immutable reuse, compaction, bounded history and self-contained export references in section 10. |
+| Readiness could accidentally block human-only matches or be bypassed at match start. | Central gate at both countdown and match entry, seat-wait semantics and human-only behavior in section 5. |
+| Existing native process-global state conflicts with concurrent Studio jobs. | Explicit contexts or isolated native worker processes and bounded scheduling in section 3. |
+
+Review method: re-read relevant mod, paired engine and Studio implementation; trace graph seeds, native movement limitations, map-specific guards, start/reset ordering and filesystem ABI. Run a small isolated native timing probe (not bot matches), preserve its hashes/scope, then compare all original PO requirements against the corrected specification. No gameplay code, executable, server configuration or running server was changed during this review.
 
 These are measured design questions, not reasons to leave requested functionality out:
 

@@ -2,7 +2,10 @@
 
 Deferred joint feature (PO, 2026-10-08): shared automatic initial map baseline,
 online server observations and Studio baseline build/import/refinement/export.
-See [the specification](ONLINE_BASELINE_SPEC.md). Implement the game-runtime
+See [the specification, reviewed r2](ONLINE_BASELINE_SPEC.md). The review makes
+the missing no-demo builder, dynamic-physics parity, map-rule migration,
+incremental budgets and transactional storage explicit requirements.
+Implement the game-runtime
 integration only after q3t2 completion and delivery of 11.2; no next version
 number is assigned. This is a specification, not an implemented capability,
 and does not change the current application version or readiness claims.
