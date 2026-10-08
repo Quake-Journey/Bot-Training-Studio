@@ -8,17 +8,22 @@ evidence, never as executable links. Read Q3T2_LEARNING_RU.md / Q3T2_LEARNING_EN
 No new desktop build, factory-weight replacement or game runtime is delivered
 by this research milestone; tactical action/weapon/item qualification stays open.
 
-Deferred joint feature (PO, 2026-10-08): shared automatic initial map baseline,
+Assigned joint feature (PO, 2026-10-08): OpenTDM-X **Beta 12** shared automatic initial map baseline,
 online server observations and Studio baseline build/import/refinement/export.
-See [the specification, reviewed r3](ONLINE_BASELINE_SPEC.md). Initial structure
+See [the specification, reviewed r4](ONLINE_BASELINE_SPEC.md). Claude owns the
+server/core implementation; Codex owns Studio/model consumers. Prepared compatible
+map packages disable baseline entirely; q2duel5/ztn2dm3/q3t2 are protected examples.
+On unprepared maps, all donors share one server store with bounded in-match evidence
+persistence and validated post-match updates. Initial structure
 supports map-only input or map plus demos from the outset, using one reusable
 baseline that assists subsequent demo analysis. No separate map-only job is
 mandatory when recordings are already supplied. The technical review makes
 the missing no-demo builder, dynamic-physics parity, map-rule migration,
 incremental budgets and transactional storage explicit requirements.
-Implement the game-runtime
-integration only after q3t2 completion and delivery of 11.2; no next version
-number is assigned. This is a specification, not an implemented capability,
+q3t2 / 11.2 is accepted and closed; Beta 12 is now explicitly assigned to Claude.
+The shared C core/API and portable fixtures are the coordination boundary; the
+current Python mechanism recognizers are not the missing native baseline builder.
+This is a specification, not an implemented capability,
 and does not change the current application version or readiness claims.
 
 Owner: Bot Training Studio. No edits to OpenTDM-X game module or Claude's q3t2 lane.
